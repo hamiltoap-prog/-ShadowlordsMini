@@ -1,0 +1,56 @@
+rules_version = '2';
+
+// Modelo de acesso do Shadowlords Mesa:
+// - Qualquer pessoa autenticada (mesmo anonimamente) que conheça o ID da mesa
+//   (o código de 5 letras compartilhado no Discord) pode LER a mesa inteira —
+//   é assim que jogadores acompanham fichas, NPCs e o log em tempo real.
+// - Só o Mestre (gmUid) pode escrever em NPCs, log e nos dados da mesa.
+// - Um personagem só pode ser escrito por quem o criou (ownerUid) ou pelo Mestre.
+// - Ninguém pode criar personagem em nome de outra pessoa nem "roubar" a mesa
+//   trocando o gmUid por conta própria.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isGM(tableId) {
+      return signedIn() &&
+        get(/databases/$(database)/documents/tables/$(tableId)).data.gmUid == request.auth.uid;
+    }
+
+    match /tables/{tableId} {
+      allow get: if signedIn();
+      allow list: if false;
+      allow create: if signedIn() &&
+        request.resource.data.gmUid == request.auth.uid &&
+        request.resource.data.id == tableId &&
+        request.resource.data.code == tableId;
+      allow update: if isGM(tableId) && request.resource.data.gmUid == resource.data.gmUid;
+      allow delete: if false;
+
+      match /characters/{characterId} {
+        allow read: if signedIn();
+        allow create: if signedIn() &&
+          request.resource.data.ownerUid == request.auth.uid &&
+          request.resource.data.tableId == tableId;
+        allow update: if signedIn() &&
+          (resource.data.ownerUid == request.auth.uid || isGM(tableId)) &&
+          request.resource.data.ownerUid == resource.data.ownerUid;
+        allow delete: if isGM(tableId) || resource.data.ownerUid == request.auth.uid;
+      }
+
+      match /npcs/{npcId} {
+        allow read: if signedIn();
+        allow write: if isGM(tableId);
+      }
+
+      match /log/{logId} {
+        allow read: if signedIn();
+        allow create: if signedIn();
+        allow update, delete: if isGM(tableId);
+      }
+    }
+  }
+}
