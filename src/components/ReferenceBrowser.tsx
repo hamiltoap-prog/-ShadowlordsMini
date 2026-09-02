@@ -26,17 +26,17 @@ import {
   type RollTable,
 } from '../data/tables'
 import { d66ToIndex36, roll1d66, roll1d6 } from '../lib/dice'
-import { logNote } from '../lib/actions'
+import { addLogEntry } from '../lib/store'
 import type { GameTable } from '../types'
 import { Badge, Button, Card, SectionTitle } from './ui'
 
-function rollTableResult(t: RollTable): { text: string; rolled: string } {
+function rollTableResult(t: RollTable): { text: string; rolled: string; dice: number[] } {
   if (t.dice === '1d66') {
     const r = roll1d66()
-    return { text: t.entries[d66ToIndex36(r.value)] ?? '?', rolled: `1d66=${r.value}` }
+    return { text: t.entries[d66ToIndex36(r.value)] ?? '?', rolled: `1d66=${r.value}`, dice: [r.tens, r.units] }
   }
   const r = roll1d6()
-  return { text: t.entries[r - 1] ?? '?', rolled: `1d6=${r}` }
+  return { text: t.entries[r - 1] ?? '?', rolled: `1d6=${r}`, dice: [r] }
 }
 
 function RollTableButton({ table, tableDef, actorName }: { table: GameTable; tableDef: RollTable; actorName: string }) {
@@ -44,7 +44,15 @@ function RollTableButton({ table, tableDef, actorName }: { table: GameTable; tab
   async function go() {
     const res = rollTableResult(tableDef)
     setLast(res.text)
-    await logNote({ tableId: table.id, actorName, actorType: 'gm' }, `${tableDef.title} (${res.rolled}): ${res.text}`, 'random_table')
+    await addLogEntry(table.id, {
+      actorName,
+      actorType: 'gm',
+      kind: 'random_table',
+      summary: `${tableDef.title} (${res.rolled}): ${res.text}`,
+      rolls: res.dice,
+      dice: res.dice,
+      diceLabel: tableDef.title,
+    })
   }
   return (
     <div className="flex flex-col gap-1 rounded-lg border border-purple-900/30 bg-black/20 p-2">
@@ -74,7 +82,15 @@ export function ReferenceBrowser({ table, actorName }: { table: GameTable; actor
   async function rollOracle() {
     const r = roll1d6()
     const text = ORACLE_YES_NO[r - 1]
-    await logNote({ tableId: table.id, actorName, actorType: 'gm' }, `Oráculo (1d6=${r}): ${text}`, 'random_table')
+    await addLogEntry(table.id, {
+      actorName,
+      actorType: 'gm',
+      kind: 'random_table',
+      summary: `Oráculo (1d6=${r}): ${text}`,
+      rolls: [r],
+      dice: [r],
+      diceLabel: 'Oráculo',
+    })
   }
 
   return (

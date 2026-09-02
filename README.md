@@ -5,12 +5,18 @@ grupo. Feito para jogar com amigos por chamada de voz (Discord, etc.) — este s
 apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Discord.
 
 - 🎲 Fichas de personagem completas e ao vivo (todos veem PV, dados e resultados em tempo real)
-- 🧙 Painel do Mestre: controla NPCs/monstros do Bestiário, rastreador de combate, tabelas
-  aleatórias, referência completa das regras
-- ⚔️ Criação de personagem seguindo o manual: atributos, ocupação, origem, habilidades,
-  equipamentos, feitiçaria e maldições
-- 🔗 Entrada simples: o Mestre cria uma mesa e recebe um código de 5 letras; os jogadores
-  entram com o código e um apelido — sem cadastro
+- ✋ **Rolagens passam pelo Mestre**: o jogador pede, o Mestre libera ou nega — sem rolagem
+  dupla nem ação fora de hora (o Mestre pode desligar isso quando quiser)
+- 🎬 **Animação de dados** aparece para a mesa inteira a cada rolagem; o Mestre também tem
+  rolagem secreta, que só ele enxerga
+- 🗺️ **Tela de jogo** em aba separada: o Mestre monta o mapa e arrasta ícones de personagens,
+  NPCs, monstros e chefes; os jogadores acompanham em tempo real, sem poder mexer
+- 🧙 Painel do Mestre: NPCs/monstros do Bestiário, rastreador de combate, tabelas aleatórias,
+  referência completa das regras, e edição de atributos, PV, defesa e moedas de qualquer ficha
+- ⚔️ Criação de personagem escolhendo cada opção (ou sorteando nos dados), com foto de perfil
+- 🛒 Loja liberada pelo Mestre: compras só acontecem quando o grupo está num lugar de comércio
+- 🔗 Entrada de qualquer aparelho: jogador entra com o código da mesa + nome do personagem;
+  o Mestre entra com e-mail e senha (com recuperação por e-mail)
 - 💸 100% gratuito: roda no plano gratuito (Spark) do Firebase, sem cartão de crédito
 
 Este projeto **não é comercial** — é distribuído para uso pessoal do grupo, respeitando a
@@ -25,16 +31,23 @@ Não há servidor próprio: o site (estático, em React) conversa diretamente co
 - Sem backend para manter no ar
 - Atualizações instantâneas: quando alguém rola um dado ou toma dano, todo mundo vê na hora
 
-O acesso é protegido apenas pelo **código da mesa** (compartilhado no Discord) — não há
-senhas nem contas de e-mail. Isso é intencional e adequado para jogar com amigos de
-confiança; não use para dados sensíveis.
+**Quem pode o quê:**
+
+- O **Mestre** tem uma conta de verdade (e-mail e senha do Firebase Auth): é ela que dá o
+  controle total da mesa, de qualquer computador, com recuperação de senha por e-mail.
+- Os **jogadores** entram só com o código da mesa + o nome do personagem, sem cadastro. O
+  código é o segredo compartilhado do grupo — adequado para jogar com amigos de confiança,
+  não para dados sensíveis.
+- As regras em `firestore.rules` garantem, do lado do servidor, que jogador não mexe em
+  NPCs, na configuração da mesa, na tela de jogo nem enxerga as rolagens secretas do Mestre.
 
 ## Configurar seu próprio Firebase (gratuito, ~5 minutos)
 
 1. Acesse [console.firebase.google.com](https://console.firebase.google.com/) e crie um
    projeto novo (pode desligar o Google Analytics, não é necessário).
-2. No menu lateral, vá em **Build → Authentication → Get started** e habilite o provedor
-   **Anonymous** (Anônimo).
+2. No menu lateral, vá em **Build → Authentication → Get started** e habilite **dois**
+   provedores em *Sign-in method*: **Anonymous** (Anônimo, usado pelos jogadores) e
+   **E-mail/senha** (usado pelo Mestre).
 3. Vá em **Build → Firestore Database → Create database**. Escolha qualquer região e comece
    em **modo de produção** (as regras de segurança deste projeto, em `firestore.rules`, cuidam
    do resto).
@@ -108,21 +121,27 @@ banco de dados em qualquer uma delas, já que tudo roda no navegador do jogador.
 
 ## Como jogar
 
-1. O **Mestre** entra na página inicial, escolhe "Criar uma Mesa", digita seu nome e
-   (opcionalmente) um nome para a mesa. Recebe um **código de 5 letras**.
-2. O Mestre compartilha o código no Discord.
-3. Cada **jogador** entra na página inicial, escolhe "Entrar em uma Mesa", digita o código e
-   um apelido, e é guiado pela criação de personagem (rolagem de atributos, ocupação, origem,
-   habilidades e equipamentos — tudo seguindo o Manual de Regras).
-4. Todos entram na chamada de voz do Discord para narrar e interpretar; o site cuida das
-   fichas, rolagens e do estado do combate.
-5. O Mestre usa o painel dele para adicionar monstros do Bestiário, rolar tabelas aleatórias,
-   consultar a referência completa das regras e controlar o combate.
+1. O **Mestre** escolhe "Criar uma Mesa", informa seu nome, um e-mail e uma senha. Recebe um
+   **código de 5 letras** e compartilha no Discord. Em qualquer outro computador ele volta
+   por "Entrar como Mestre" com o mesmo e-mail e senha (ou usa "Esqueci minha senha").
+2. Cada **jogador** escolhe "Entrar como Jogador", digita o código da mesa e o nome do
+   personagem. Se o personagem já existe, a ficha volta exatamente como estava, em qualquer
+   aparelho; se não existe, ele é levado para a criação.
+3. Na **criação**, o jogador escolhe ocupação, origem e habilidades lendo as descrições (ou
+   sorteia nos dados), define uma foto de perfil por URL e monta o equipamento inicial. Os
+   Atributos são sempre sorteados, como manda o manual — só o Mestre pode ajustá-los depois.
+4. Durante a sessão, toda rolagem do jogador vira um **pedido ao Mestre**, que libera ou nega.
+   Quando liberada, os dados aparecem rolando na tela de todo mundo. Se o teste falhou por
+   pouco, o jogador ainda pode gastar PV para alcançar a dificuldade (pág. 39 do manual).
+5. O Mestre controla tudo pelo painel: fila de pedidos, NPCs e monstros do Bestiário, combate,
+   tabelas aleatórias, loja (liberada só quando o grupo estiver num lugar de comércio) e
+   rolagens secretas que ninguém mais vê.
+6. A **tela de jogo** (`🗺️ Tela de jogo`, abre em outra aba) mostra o mapa e os ícones. O
+   Mestre arrasta imagens para dentro — inclusive arrastando direto de outra aba do navegador,
+   com Shift para virar o mapa de fundo — e move as peças; os jogadores só acompanham.
 
-Cada navegador "lembra" automaticamente a última mesa/personagem acessado (usando
-armazenamento local do próprio navegador) — então basta abrir o link de novo na sessão
-seguinte. Se alguém trocar de aparelho, o Mestre pode reabrir o personagem dele pelo próprio
-painel (aba Personagens) e continuar controlando normalmente até a pessoa recuperar acesso.
+Cada navegador também "lembra" a última mesa acessada, então dá para voltar direto pelo
+histórico na sessão seguinte.
 
 ## Estrutura do projeto
 

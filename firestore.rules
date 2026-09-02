@@ -2,12 +2,13 @@ rules_version = '2';
 
 // Modelo de acesso do Shadowlords Mesa:
 // - Qualquer pessoa autenticada (mesmo anonimamente) que conheça o ID da mesa
-//   (o código de 5 letras compartilhado no Discord) pode LER a mesa inteira —
-//   é assim que jogadores acompanham fichas, NPCs e o log em tempo real.
-// - Só o Mestre (gmUid) pode escrever em NPCs, log e nos dados da mesa.
-// - Um personagem só pode ser escrito por quem o criou (ownerUid) ou pelo Mestre.
-// - Ninguém pode criar personagem em nome de outra pessoa nem "roubar" a mesa
-//   trocando o gmUid por conta própria.
+//   (o código de 5 letras compartilhado no Discord) pode LER a mesa — é assim
+//   que jogadores acompanham fichas, NPCs, a cena e o log em tempo real.
+// - Só o Mestre (gmUid, uma conta de e-mail/senha) escreve em NPCs, cena e
+//   configurações da mesa, e só ele lê as rolagens secretas.
+// - Um personagem é editado por quem o controla (ownerUid) ou pelo Mestre.
+//   Um jogador pode "reivindicar" a ficha em outro dispositivo entrando com o
+//   nome do personagem — essa troca só altera ownerUid.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -15,13 +16,23 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function tableData(tableId) {
+      return get(/databases/$(database)/documents/tables/$(tableId)).data;
+    }
+
     function isGM(tableId) {
-      return signedIn() &&
-        get(/databases/$(database)/documents/tables/$(tableId)).data.gmUid == request.auth.uid;
+      return signedIn() && tableData(tableId).gmUid == request.auth.uid;
+    }
+
+    // Índice particular de cada Mestre: lista das mesas que ele criou, para
+    // reencontrá-las ao entrar de outro dispositivo. Só o próprio dono lê.
+    match /gmTables/{uid}/tables/{tableId} {
+      allow read, write: if signedIn() && request.auth.uid == uid;
     }
 
     match /tables/{tableId} {
       allow get: if signedIn();
+      // Ninguém pode varrer a lista de mesas: o código da mesa é o segredo.
       allow list: if false;
       allow create: if signedIn() &&
         request.resource.data.gmUid == request.auth.uid &&
@@ -35,9 +46,14 @@ service cloud.firestore {
         allow create: if signedIn() &&
           request.resource.data.ownerUid == request.auth.uid &&
           request.resource.data.tableId == tableId;
-        allow update: if signedIn() &&
-          (resource.data.ownerUid == request.auth.uid || isGM(tableId)) &&
-          request.resource.data.ownerUid == resource.data.ownerUid;
+        // Edição normal: o dono da ficha ou o Mestre.
+        // Reivindicação: qualquer pessoa da mesa pode assumir o controle da
+        // ficha em outro dispositivo, mas a escrita só pode mexer no ownerUid.
+        allow update: if signedIn() && (
+          resource.data.ownerUid == request.auth.uid ||
+          isGM(tableId) ||
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid', 'updatedAt'])
+        );
         allow delete: if isGM(tableId) || resource.data.ownerUid == request.auth.uid;
       }
 
@@ -50,6 +66,25 @@ service cloud.firestore {
         allow read: if signedIn();
         allow create: if signedIn();
         allow update, delete: if isGM(tableId);
+      }
+
+      // Rolagens secretas do Mestre: ninguém mais lê nem escreve.
+      match /secretRolls/{rollId} {
+        allow read, write: if isGM(tableId);
+      }
+
+      // Pedidos de rolagem: o jogador cria o seu; o Mestre libera ou nega.
+      match /rollRequests/{requestId} {
+        allow read: if signedIn();
+        allow create: if signedIn() && request.resource.data.requesterUid == request.auth.uid;
+        allow update: if isGM(tableId) || resource.data.requesterUid == request.auth.uid;
+        allow delete: if isGM(tableId);
+      }
+
+      // Tela de jogo: todos veem, só o Mestre mexe.
+      match /scene/{sceneId} {
+        allow read: if signedIn();
+        allow write: if isGM(tableId);
       }
     }
   }

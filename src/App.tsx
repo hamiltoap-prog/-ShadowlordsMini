@@ -1,5 +1,6 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { Home } from './pages/Home'
+import { ScenePage } from './pages/ScenePage'
 import { TableRoute } from './pages/TableRoute'
 
 export default function App() {
@@ -9,6 +10,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Home />} />
           <Route path="/t/:code" element={<TableRoute />} />
+          <Route path="/t/:code/tela" element={<ScenePage />} />
           <Route path="*" element={<Home />} />
         </Routes>
       </div>

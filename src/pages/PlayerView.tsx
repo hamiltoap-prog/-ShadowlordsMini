@@ -1,29 +1,47 @@
 import { useEffect, useState } from 'react'
-import { CheckPanel } from '../components/CheckPanel'
-import { DamageRoller } from '../components/DamageRoller'
+import { Link } from 'react-router-dom'
+import { ActionPanel } from '../components/ActionPanel'
+import { DiceOverlay } from '../components/DiceOverlay'
 import { LogFeed } from '../components/LogFeed'
-import { SpellPanel } from '../components/SpellPanel'
+import { Portrait } from '../components/Portrait'
 import { XpPanel } from '../components/XpPanel'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
 import { ARMORS, GEAR, WEAPONS } from '../data/equipment'
-import { logCheck, logDamage, logNote, logSpell } from '../lib/actions'
+import { logNote } from '../lib/actions'
 import { totalDefense } from '../lib/characterMath'
 import { newId } from '../lib/id'
 import { listenCharacter, updateCharacter } from '../lib/store'
 import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
 import type { Character, GameTable } from '../types'
 
-export function PlayerView({ table, characterId }: { table: GameTable; characterId: string }) {
+/**
+ * Ficha do jogador. Quando `asGM` é verdadeiro, o Mestre está controlando a
+ * ficha e ganha acesso à edição de atributos, PV máximos, defesa e moedas.
+ */
+export function PlayerView({
+  table,
+  characterId,
+  uid,
+  asGM = false,
+}: {
+  table: GameTable
+  characterId: string
+  uid: string
+  asGM?: boolean
+}) {
   const [character, setCharacter] = useState<Character | null | undefined>(undefined)
   const [noteDraft, setNoteDraft] = useState('')
   const [hpDelta, setHpDelta] = useState(1)
-  const [newItemName, setNewItemName] = useState('')
+  const [portraitDraft, setPortraitDraft] = useState('')
 
   useEffect(() => {
     setCharacter(undefined)
     return listenCharacter(table.id, characterId, (c) => {
       setCharacter(c)
-      setNoteDraft((prev) => (c && document.activeElement?.id !== 'notes-field' ? c.notes : prev))
+      if (c) {
+        setNoteDraft((prev) => (document.activeElement?.id === 'notes-field' ? prev : c.notes))
+        setPortraitDraft((prev) => (document.activeElement?.id === 'portrait-field' ? prev : (c.portraitUrl ?? '')))
+      }
     })
   }, [table.id, characterId])
 
@@ -35,11 +53,15 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
   }
 
   const actor = { tableId: table.id, actorName: character.name, actorType: 'player' as const, characterId: character.id }
+  const shopAvailable = table.shopOpen || asGM
 
   async function applyHp(delta: number) {
     if (!character) return
     const newCurrent = Math.max(0, Math.min(character.hp.max, character.hp.current + delta))
-    await updateCharacter(table.id, character.id, { hp: { ...character.hp, current: newCurrent }, isAlive: newCurrent > 0 })
+    await updateCharacter(table.id, character.id, {
+      hp: { ...character.hp, current: newCurrent },
+      isAlive: newCurrent > 0,
+    })
     await logNote(actor, `${delta > 0 ? 'recuperou' : 'sofreu'} ${Math.abs(delta)} PV (${newCurrent}/${character.hp.max})`, 'hp')
   }
 
@@ -50,28 +72,20 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
       await updateCharacter(table.id, character.id, { weapons })
     } else {
       const armor = character.armor.map((a) => (a.id === id ? { ...a, equipped: !a.equipped } : a))
-      const defense = totalDefense(character.baseDefense, armor)
-      await updateCharacter(table.id, character.id, { armor, defense })
+      await updateCharacter(table.id, character.id, { armor, defense: totalDefense(character.baseDefense, armor) })
     }
   }
 
   async function removeItem(kind: 'weapon' | 'armor' | 'equipment', id: string) {
     if (!character) return
-    if (kind === 'weapon') await updateCharacter(table.id, character.id, { weapons: character.weapons.filter((w) => w.id !== id) })
-    else if (kind === 'armor') {
+    if (kind === 'weapon') {
+      await updateCharacter(table.id, character.id, { weapons: character.weapons.filter((w) => w.id !== id) })
+    } else if (kind === 'armor') {
       const armor = character.armor.filter((a) => a.id !== id)
       await updateCharacter(table.id, character.id, { armor, defense: totalDefense(character.baseDefense, armor) })
-    } else await updateCharacter(table.id, character.id, { equipment: character.equipment.filter((i) => i.id !== id) })
-  }
-
-  async function addGearItem(name: string) {
-    if (!character || !name.trim()) return
-    const existing = character.equipment.find((i) => i.name === name.trim())
-    const equipment = existing
-      ? character.equipment.map((i) => (i.name === name.trim() ? { ...i, qty: i.qty + 1 } : i))
-      : [...character.equipment, { id: newId(), name: name.trim(), qty: 1 }]
-    await updateCharacter(table.id, character.id, { equipment })
-    setNewItemName('')
+    } else {
+      await updateCharacter(table.id, character.id, { equipment: character.equipment.filter((i) => i.id !== id) })
+    }
   }
 
   async function changeQty(id: string, delta: number) {
@@ -82,29 +96,87 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
     await updateCharacter(table.id, character.id, { equipment })
   }
 
-  const weaponOptions = character.weapons.filter((w) => w.equipped).map((w) => ({ label: w.name, dano: w.dano }))
+  async function buy(kind: 'weapon' | 'armor' | 'gear', itemName: string) {
+    if (!character) return
+    if (kind === 'weapon') {
+      const w = WEAPONS.find((x) => x.name === itemName)
+      if (!w || character.gold < w.custo) return
+      await updateCharacter(table.id, character.id, {
+        gold: character.gold - w.custo,
+        weapons: [
+          ...character.weapons,
+          { id: newId(), name: w.name, dano: w.dano, habilidade: w.habilidade, tipo: w.tipo, equipped: true },
+        ],
+      })
+      await logNote(actor, `comprou ${w.name} por ${w.custo} moedas`, 'note')
+    } else if (kind === 'armor') {
+      const a = ARMORS.find((x) => x.name === itemName)
+      if (!a || character.gold < a.custo) return
+      const armor = [
+        ...character.armor,
+        { id: newId(), name: a.name, defesaBonus: a.defesa, protecao: a.protecao, equipped: true },
+      ]
+      await updateCharacter(table.id, character.id, {
+        gold: character.gold - a.custo,
+        armor,
+        defense: totalDefense(character.baseDefense, armor),
+      })
+      await logNote(actor, `comprou ${a.name} por ${a.custo} moedas`, 'note')
+    } else {
+      const g = GEAR.find((x) => x.name === itemName)
+      if (!g || character.gold < g.custo) return
+      const existing = character.equipment.find((i) => i.name === g.name)
+      const equipment = existing
+        ? character.equipment.map((i) => (i.name === g.name ? { ...i, qty: i.qty + 1 } : i))
+        : [...character.equipment, { id: newId(), name: g.name, qty: 1 }]
+      await updateCharacter(table.id, character.id, { gold: character.gold - g.custo, equipment })
+      await logNote(actor, `comprou ${g.name} por ${g.custo} moedas`, 'note')
+    }
+  }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 p-4 pb-16 lg:grid lg:grid-cols-[1fr_360px] lg:items-start">
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 p-4 pb-16 lg:grid lg:grid-cols-[1fr_340px] lg:items-start">
+      {!asGM && <DiceOverlay tableId={table.id} isGM={false} />}
+
       <div className="flex flex-col gap-4">
+        {/* Cabeçalho */}
         <Card className="p-4">
-          <div className="flex flex-wrap items-start justify-between gap-2">
-            <div>
-              <h1 className="font-serif text-2xl text-purple-100">{character.name}</h1>
-              <p className="text-sm text-purple-300/60">
-                {character.occupation} · {character.origin}
-              </p>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <Portrait url={character.portraitUrl} name={character.name} size={64} />
+              <div>
+                <h1 className="font-serif text-2xl text-purple-100">{character.name}</h1>
+                <p className="text-sm text-purple-300/60">
+                  {character.occupation} · {character.origin}
+                </p>
+                <p className="text-xs text-purple-300/40">Jogador: {character.playerNickname}</p>
+              </div>
             </div>
-            {!character.isAlive && <Badge tone="bad">Morto</Badge>}
+            <div className="flex items-center gap-2">
+              {!character.isAlive && <Badge tone="bad">Morto</Badge>}
+              <Link
+                to={`/t/${table.id}/tela`}
+                target="_blank"
+                className="rounded-lg border border-purple-800/50 px-3 py-1.5 text-sm text-purple-200 hover:border-purple-500"
+              >
+                🗺️ Abrir tela de jogo
+              </Link>
+            </div>
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-4">
+          <div className="mt-3 flex flex-wrap items-end gap-4">
             <div>
               <p className="text-xs uppercase text-purple-400/60">Pontos de Vida</p>
               <div className="flex items-center gap-2">
                 <div className="h-3 w-40 overflow-hidden rounded-full bg-black/40">
                   <div
-                    className={`h-full ${character.hp.current / character.hp.max > 0.5 ? 'bg-emerald-600' : character.hp.current / character.hp.max > 0.2 ? 'bg-amber-500' : 'bg-red-600'}`}
+                    className={`h-full ${
+                      character.hp.current / character.hp.max > 0.5
+                        ? 'bg-emerald-600'
+                        : character.hp.current / character.hp.max > 0.2
+                          ? 'bg-amber-500'
+                          : 'bg-red-600'
+                    }`}
                     style={{ width: `${Math.max(0, (character.hp.current / character.hp.max) * 100)}%` }}
                   />
                 </div>
@@ -128,25 +200,83 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
             </div>
             <div>
               <p className="text-xs uppercase text-purple-400/60">Moedas</p>
-              <p className="text-xl text-purple-100">{character.gold}</p>
+              {asGM ? (
+                <Input
+                  type="number"
+                  value={character.gold}
+                  onChange={(e) => updateCharacter(table.id, character.id, { gold: Number(e.target.value) })}
+                  className="w-24"
+                />
+              ) : (
+                <p className="text-xl text-amber-300/90">{character.gold}</p>
+              )}
             </div>
           </div>
         </Card>
 
+        {/* Atributos */}
         <Card className="p-4">
-          <SectionTitle className="mb-2">Atributos</SectionTitle>
+          <div className="mb-2 flex items-center justify-between">
+            <SectionTitle>Atributos</SectionTitle>
+            {!asGM && <span className="text-xs text-purple-400/50">só o Mestre pode alterar</span>}
+          </div>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
             {ATTRIBUTE_KEYS.map((k) => (
               <div key={k} className="rounded-lg border border-purple-900/40 bg-black/20 p-2 text-center">
                 <p className="text-[10px] uppercase text-purple-400/60">{ATTRIBUTE_LABELS[k]}</p>
-                <p className="text-lg text-purple-100">{character.attributes[k].score}</p>
-                <p className="text-xs text-purple-300/60">
-                  mod. {character.attributes[k].mod >= 0 ? '+' : ''}
-                  {character.attributes[k].mod}
-                </p>
+                {asGM ? (
+                  <GMAttributeEditor table={table} character={character} attrKey={k} />
+                ) : (
+                  <>
+                    <p className="text-lg text-purple-100">{character.attributes[k].score}</p>
+                    <p className="text-xs text-purple-300/60">
+                      mod. {character.attributes[k].mod >= 0 ? '+' : ''}
+                      {character.attributes[k].mod}
+                    </p>
+                  </>
+                )}
               </div>
             ))}
           </div>
+          {asGM && (
+            <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-purple-900/30 pt-3 text-sm">
+              <label className="flex items-center gap-1 text-purple-300/70">
+                PV máx.
+                <Input
+                  type="number"
+                  value={character.hp.max}
+                  onChange={(e) =>
+                    updateCharacter(table.id, character.id, { hp: { ...character.hp, max: Number(e.target.value) } })
+                  }
+                  className="w-20"
+                />
+              </label>
+              <label className="flex items-center gap-1 text-purple-300/70">
+                Defesa base
+                <Input
+                  type="number"
+                  value={character.baseDefense}
+                  onChange={(e) => {
+                    const baseDefense = Number(e.target.value)
+                    updateCharacter(table.id, character.id, {
+                      baseDefense,
+                      defense: totalDefense(baseDefense, character.armor),
+                    })
+                  }}
+                  className="w-20"
+                />
+              </label>
+              <label className="flex items-center gap-1 text-purple-300/70">
+                XP
+                <Input
+                  type="number"
+                  value={character.xp}
+                  onChange={(e) => updateCharacter(table.id, character.id, { xp: Number(e.target.value) })}
+                  className="w-20"
+                />
+              </label>
+            </div>
+          )}
           {character.skills.length > 0 && (
             <div className="mt-3 flex flex-wrap gap-1.5">
               {character.skills.map((s) => (
@@ -156,57 +286,27 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
           )}
         </Card>
 
+        {/* Ações */}
         <Card className="flex flex-col gap-3 p-4">
-          <SectionTitle>Ações</SectionTitle>
-          <CheckPanel
-            title="Teste de Atributo"
-            attributes={character.attributes}
-            skills={character.skills}
-            hpCurrent={character.hp.current}
-            mode="test"
-            allowTargetEdit
-            targetLabel="Dificuldade"
-            onConfirm={async (check, hpSpent) => {
-              await logCheck(actor, check)
-              if (hpSpent > 0) await applyHp(-hpSpent)
-            }}
-          />
-          <CheckPanel
-            title="Ataque"
-            attributes={character.attributes}
-            skills={character.skills}
-            hpCurrent={character.hp.current}
-            mode="attack"
-            defaultAttr="for"
-            defaultTarget={10}
-            allowTargetEdit
-            targetLabel="Defesa do Alvo"
-            onConfirm={async (check, hpSpent) => {
-              await logCheck(actor, check)
-              if (hpSpent > 0) await applyHp(-hpSpent)
-            }}
-          />
-          <div className="rounded-lg border border-purple-900/40 bg-black/20 p-3">
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-purple-300/70">Dano</p>
-            <DamageRoller
-              options={weaponOptions.length ? weaponOptions : [{ label: 'Desarmado', dano: '1d3' }]}
-              attributes={character.attributes}
-              onConfirm={(dmg) => logDamage(actor, dmg)}
-            />
+          <div className="flex items-center justify-between">
+            <SectionTitle>Ações</SectionTitle>
+            {table.requireApproval && !asGM && (
+              <span className="text-xs text-purple-400/50">as rolagens passam pelo Mestre</span>
+            )}
           </div>
-          <SpellPanel
-            attributes={character.attributes}
-            skills={character.skills}
-            hpCurrent={character.hp.current}
-            onConfirm={async (spellName, result) => {
-              await logSpell(actor, spellName, result)
-              await applyHp(-result.pvCost)
-            }}
-          />
+          <ActionPanel table={table} character={character} uid={uid} />
         </Card>
 
+        {/* Inventário */}
         <Card className="p-4">
-          <SectionTitle className="mb-2">Inventário</SectionTitle>
+          <div className="mb-2 flex items-center justify-between">
+            <SectionTitle>Inventário</SectionTitle>
+            {shopAvailable ? (
+              <Badge tone="good">loja aberta</Badge>
+            ) : (
+              <span className="text-xs text-purple-400/50">a loja abre quando o Mestre liberar</span>
+            )}
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
               <p className="mb-1 text-xs uppercase text-purple-400/60">Armas</p>
@@ -225,13 +325,6 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
                   </span>
                 </div>
               ))}
-              <AddFromList label="+ arma" options={WEAPONS.map((w) => w.name)} onAdd={(name) => {
-                const w = WEAPONS.find((x) => x.name === name)
-                if (!w || !character) return
-                updateCharacter(table.id, character.id, {
-                  weapons: [...character.weapons, { id: newId(), name: w.name, dano: w.dano, habilidade: w.habilidade, tipo: w.tipo, equipped: true }],
-                })
-              }} />
             </div>
             <div>
               <p className="mb-1 text-xs uppercase text-purple-400/60">Armaduras</p>
@@ -250,12 +343,6 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
                   </span>
                 </div>
               ))}
-              <AddFromList label="+ armadura" options={ARMORS.map((a) => a.name)} onAdd={(name) => {
-                const a = ARMORS.find((x) => x.name === name)
-                if (!a || !character) return
-                const armor = [...character.armor, { id: newId(), name: a.name, defesaBonus: a.defesa, protecao: a.protecao, equipped: true }]
-                updateCharacter(table.id, character.id, { armor, defense: totalDefense(character.baseDefense, armor) })
-              }} />
             </div>
           </div>
           <div className="mt-3">
@@ -274,19 +361,33 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
                 </span>
               </div>
             ))}
-            <div className="mt-1 flex gap-2">
-              <AddFromList label="+ item" options={GEAR.map((g) => g.name)} onAdd={addGearItem} />
-              <Input
-                value={newItemName}
-                onChange={(e) => setNewItemName(e.target.value)}
-                placeholder="Item personalizado"
-                className="w-40"
-              />
-              <Button onClick={() => addGearItem(newItemName)}>Adicionar</Button>
-            </div>
           </div>
+
+          {shopAvailable && (
+            <div className="mt-3 grid gap-3 border-t border-purple-900/30 pt-3 sm:grid-cols-3">
+              <ShopColumn
+                title="Armas"
+                items={WEAPONS.map((w) => ({ name: w.name, custo: w.custo, extra: w.dano }))}
+                gold={character.gold}
+                onBuy={(n) => buy('weapon', n)}
+              />
+              <ShopColumn
+                title="Armaduras"
+                items={ARMORS.map((a) => ({ name: a.name, custo: a.custo, extra: `+${a.defesa} Def` }))}
+                gold={character.gold}
+                onBuy={(n) => buy('armor', n)}
+              />
+              <ShopColumn
+                title="Equipamentos"
+                items={GEAR.map((g) => ({ name: g.name, custo: g.custo }))}
+                gold={character.gold}
+                onBuy={(n) => buy('gear', n)}
+              />
+            </div>
+          )}
         </Card>
 
+        {/* XP */}
         <Card className="p-4">
           <SectionTitle className="mb-2">Experiência</SectionTitle>
           <XpPanel
@@ -298,8 +399,19 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
           />
         </Card>
 
-        <Card className="p-4">
-          <SectionTitle className="mb-2">Anotações</SectionTitle>
+        {/* Retrato + anotações */}
+        <Card className="flex flex-col gap-3 p-4">
+          <SectionTitle>Retrato e Anotações</SectionTitle>
+          <div className="flex items-center gap-2">
+            <Portrait url={portraitDraft} name={character.name} size={40} />
+            <Input
+              id="portrait-field"
+              value={portraitDraft}
+              onChange={(e) => setPortraitDraft(e.target.value)}
+              onBlur={() => updateCharacter(table.id, character.id, { portraitUrl: portraitDraft.trim() || undefined })}
+              placeholder="URL da foto de perfil"
+            />
+          </div>
           <textarea
             id="notes-field"
             value={noteDraft}
@@ -319,38 +431,68 @@ export function PlayerView({ table, characterId }: { table: GameTable; character
   )
 }
 
-function AddFromList({ label, options, onAdd }: { label: string; options: string[]; onAdd: (name: string) => void }) {
-  const [open, setOpen] = useState(false)
-  const [value, setValue] = useState(options[0])
-  if (!open) {
-    return (
-      <button className="mt-1 text-xs text-purple-400 hover:text-purple-200" onClick={() => setOpen(true)}>
-        {label}
-      </button>
-    )
+function GMAttributeEditor({
+  table,
+  character,
+  attrKey,
+}: {
+  table: GameTable
+  character: Character
+  attrKey: (typeof ATTRIBUTE_KEYS)[number]
+}) {
+  const attr = character.attributes[attrKey]
+  function update(patch: { score?: number; mod?: number }) {
+    updateCharacter(table.id, character.id, {
+      attributes: { ...character.attributes, [attrKey]: { ...attr, ...patch } },
+    })
   }
   return (
-    <div className="mt-1 flex gap-1">
-      <select
-        value={value}
-        onChange={(e) => setValue(e.target.value)}
-        className="rounded-lg border border-purple-900/50 bg-[#0f0d16] px-2 py-1 text-xs text-purple-50"
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o}
-          </option>
+    <div className="flex flex-col items-center gap-1">
+      <Input
+        type="number"
+        value={attr.score}
+        onChange={(e) => update({ score: Number(e.target.value) })}
+        className="w-14 px-1 text-center"
+      />
+      <Input
+        type="number"
+        value={attr.mod}
+        onChange={(e) => update({ mod: Number(e.target.value) })}
+        className="w-14 px-1 text-center text-xs"
+      />
+    </div>
+  )
+}
+
+function ShopColumn({
+  title,
+  items,
+  gold,
+  onBuy,
+}: {
+  title: string
+  items: { name: string; custo: number; extra?: string }[]
+  gold: number
+  onBuy: (name: string) => void
+}) {
+  return (
+    <div className="rounded-lg border border-purple-900/30 bg-black/20 p-2">
+      <p className="mb-1 text-xs uppercase text-purple-400/70">{title}</p>
+      <div className="max-h-40 overflow-y-auto">
+        {items.map((i) => (
+          <button
+            key={i.name}
+            disabled={gold < i.custo}
+            onClick={() => onBuy(i.name)}
+            className="flex w-full items-center justify-between gap-2 rounded px-1 py-0.5 text-left text-xs text-purple-100 hover:bg-purple-900/30 disabled:opacity-30"
+          >
+            <span>
+              {i.name} {i.extra && <span className="text-purple-300/50">({i.extra})</span>}
+            </span>
+            <span className="text-amber-300/80">{i.custo}</span>
+          </button>
         ))}
-      </select>
-      <button
-        className="rounded-lg bg-purple-700 px-2 py-1 text-xs text-white"
-        onClick={() => {
-          onAdd(value)
-          setOpen(false)
-        }}
-      >
-        ok
-      </button>
+      </div>
     </div>
   )
 }

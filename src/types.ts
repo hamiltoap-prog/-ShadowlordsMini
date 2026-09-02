@@ -54,6 +54,7 @@ export interface Character {
   ownerUid: string
   playerNickname: string
   name: string
+  nameLower: string // usado para o jogador reencontrar a ficha pelo nome
   occupation: string
   origin: string
   attributes: Attributes
@@ -68,7 +69,7 @@ export interface Character {
   xp: number
   xpSpent: number
   notes: string
-  portraitEmoji?: string
+  portraitUrl?: string
   createdAt: number
   updatedAt: number
   isAlive: boolean
@@ -90,6 +91,7 @@ export interface NPC {
   attacks: NPCAttack[]
   sourceLabel?: string
   notes?: string
+  portraitUrl?: string
   visible: boolean
   createdAt: number
 }
@@ -100,10 +102,15 @@ export interface GameTable {
   name: string
   gmUid: string
   gmNickname: string
+  gmEmail?: string
   createdAt: number
   combatActive: boolean
   combatOrder: string[] // ids: `char:<id>` ou `npc:<id>`
   combatTurnIndex: number
+  /** Quando aberta, jogadores podem comprar itens/armas na loja. */
+  shopOpen: boolean
+  /** Quando ligado, toda rolagem de jogador precisa da aprovação do Mestre. */
+  requireApproval: boolean
 }
 
 export type LogKind =
@@ -130,4 +137,73 @@ export interface LogEntry {
   rolls?: number[]
   total?: number
   success?: boolean
+  /** Dados a exibir na animação (valores de cada d6 rolado). */
+  dice?: number[]
+  /** Rótulo curto mostrado no overlay de dados, ex: "Ataque". */
+  diceLabel?: string
+}
+
+/** Pedido de rolagem feito por um jogador, aguardando liberação do Mestre. */
+export type RollRequestStatus = 'pending' | 'approved' | 'denied'
+
+export type RollRequestKind = 'attribute_test' | 'attack' | 'spell' | 'damage'
+
+export interface RollRequest {
+  id: string
+  tableId: string
+  characterId: string
+  characterName: string
+  requesterUid: string
+  kind: RollRequestKind
+  /** Descrição legível da ação pedida, mostrada ao Mestre. */
+  description: string
+  status: RollRequestStatus
+  createdAt: number
+  resolvedAt?: number
+  resultSummary?: string
+  deniedReason?: string
+  // Resultado, preenchido quando o Mestre libera a rolagem
+  dice?: number[]
+  baseTotal?: number
+  success?: boolean
+  /** PV gastos depois da rolagem para tentar alcançar a dificuldade (pág. 39). */
+  hpSpentAfter?: number
+  finalTotal?: number
+  // Dados necessários para executar a rolagem quando aprovada
+  attrKey?: AttributeKey
+  attrMod?: number
+  skillBonus?: number
+  skillName?: string
+  target?: number
+  spellName?: string
+  spellCost?: number
+  weaponLabel?: string
+  weaponDano?: string
+  damageAttrMod?: number
+}
+
+export type SceneTokenKind = 'pc' | 'npc' | 'monster' | 'boss'
+
+export const SCENE_TOKEN_LABELS: Record<SceneTokenKind, string> = {
+  pc: 'Personagem',
+  npc: 'NPC',
+  monster: 'Monstro',
+  boss: 'Chefe',
+}
+
+export interface SceneToken {
+  id: string
+  label: string
+  imageUrl?: string
+  kind: SceneTokenKind
+  /** Posição relativa ao tabuleiro (0..1), para funcionar em qualquer tela. */
+  x: number
+  y: number
+  size: number // diâmetro relativo à largura do tabuleiro (ex: 0.07)
+}
+
+export interface Scene {
+  backgroundUrl: string
+  tokens: SceneToken[]
+  updatedAt: number
 }

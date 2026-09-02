@@ -114,8 +114,11 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
       actorType: 'gm',
       kind: 'attack',
       summary: `${npc.name} ataca ${target.name} com ${attack.name}: 3d6 [${r.rolls.join(', ')}] ${bonus ? (bonus >= 0 ? '+' : '') + bonus : ''} = ${total} vs Defesa ${target.defense} → ${success ? 'Sucesso' : 'Fracasso'}`,
+      rolls: r.rolls,
       total,
       success,
+      dice: r.rolls,
+      diceLabel: `${npc.name} · ${attack.name}`,
     })
   }
 
@@ -128,7 +131,10 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
       actorType: 'gm',
       kind: 'damage',
       summary: `Dano de ${npc.name} (${attack.name}): ${attack.dano} [${d.rolls.join(', ')}] = ${total}${target ? ' em ' + target.name : ''}`,
+      rolls: d.rolls,
       total,
+      dice: d.rolls,
+      diceLabel: `Dano · ${attack.name}`,
     })
     if (target) {
       const newCurrent = Math.max(0, target.hp.current - total)

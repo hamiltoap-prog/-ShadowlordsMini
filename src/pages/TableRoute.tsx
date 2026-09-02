@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
-import { Button, Card, Input } from '../components/ui'
-import { useAuthUid } from '../hooks/useAuth'
+import { useCallback, useEffect, useState } from 'react'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { Button, Card, Input, SectionTitle } from '../components/ui'
+import { useAuth } from '../hooks/useAuth'
 import { firebaseConfigured } from '../firebase'
 import { getNickname, rememberTable, setNickname } from '../lib/localMemory'
-import { findMyCharacter, listenTable } from '../lib/store'
+import { claimCharacter, findCharacterByName, findMyCharacter, listenTable } from '../lib/store'
 import type { Character, GameTable } from '../types'
 import { CharacterCreate } from './CharacterCreate'
 import { GMDashboard } from './GMDashboard'
@@ -13,33 +13,63 @@ import { PlayerView } from './PlayerView'
 export function TableRoute() {
   const { code = '' } = useParams()
   const tableId = code.toUpperCase()
-  const uid = useAuthUid()
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedName = searchParams.get('personagem') ?? ''
+  const { uid, loading: authLoading } = useAuth()
+
   const [table, setTable] = useState<GameTable | null | undefined>(undefined)
-  const [nickname, setNicknameState] = useState<string | null>(null)
-  const [myCharacter, setMyCharacter] = useState<Character | null | undefined>(undefined)
+  const [character, setCharacter] = useState<Character | null | undefined>(undefined)
+  const [lookupError, setLookupError] = useState('')
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     if (!firebaseConfigured) return
     return listenTable(tableId, setTable)
   }, [tableId])
 
-  useEffect(() => {
-    setNicknameState(getNickname(tableId))
-  }, [tableId])
-
   const isGM = Boolean(uid && table && table.gmUid === uid)
 
-  useEffect(() => {
+  /** Descobre qual ficha este jogador controla: pelo nome informado no login,
+   * ou pela ficha já vinculada a este dispositivo. */
+  const resolveCharacter = useCallback(async () => {
     if (!uid || !table || isGM) return
-    setMyCharacter(undefined)
-    findMyCharacter(tableId, uid).then(setMyCharacter)
-  }, [uid, table, tableId, isGM])
+    setCharacter(undefined)
+    setLookupError('')
+    try {
+      if (requestedName.trim()) {
+        const byName = await findCharacterByName(tableId, requestedName)
+        if (byName) {
+          if (byName.ownerUid !== uid) await claimCharacter(tableId, byName.id, uid)
+          setNickname(tableId, byName.playerNickname || requestedName)
+          setCharacter({ ...byName, ownerUid: uid })
+          return
+        }
+        // Nome informado ainda não existe: segue para a criação com esse nome.
+        setCharacter(null)
+        return
+      }
+      const mine = await findMyCharacter(tableId, uid)
+      setCharacter(mine)
+    } catch (err) {
+      setLookupError(err instanceof Error ? err.message : 'Erro ao procurar o personagem.')
+      setCharacter(null)
+    }
+  }, [uid, table, isGM, requestedName, tableId])
 
   useEffect(() => {
-    if (table && nickname) {
-      rememberTable({ tableId: table.id, tableName: table.name, nickname, isGM })
+    void resolveCharacter()
+  }, [resolveCharacter])
+
+  useEffect(() => {
+    if (table) {
+      rememberTable({
+        tableId: table.id,
+        tableName: table.name,
+        nickname: isGM ? table.gmNickname : getNickname(tableId) || '',
+        isGM,
+      })
     }
-  }, [table, nickname, isGM])
+  }, [table, isGM, tableId])
 
   if (!firebaseConfigured) {
     return (
@@ -51,42 +81,73 @@ export function TableRoute() {
     )
   }
 
-  if (table === undefined || !uid) {
+  if (table === undefined || authLoading || !uid) {
     return <p className="p-8 text-center text-purple-300/60">Carregando mesa...</p>
   }
   if (table === null) {
     return <p className="p-8 text-center text-red-300">Mesa "{tableId}" não encontrada. Confira o código com o Mestre.</p>
   }
 
-  if (isGM) {
-    return <GMDashboard table={table} />
-  }
+  if (isGM) return <GMDashboard table={table} />
 
-  if (!nickname) {
-    return <NicknamePrompt onSubmit={(n) => { setNickname(tableId, n); setNicknameState(n) }} tableName={table.name} />
-  }
-
-  if (myCharacter === undefined) {
+  if (character === undefined) {
     return <p className="p-8 text-center text-purple-300/60">Procurando seu personagem...</p>
   }
-  if (myCharacter === null) {
-    return <CharacterCreate table={table} uid={uid} nickname={nickname} onCreated={setMyCharacter} />
+
+  if (character === null) {
+    if (creating || requestedName.trim()) {
+      return (
+        <CharacterCreate
+          table={table}
+          uid={uid}
+          suggestedName={requestedName}
+          nickname={getNickname(tableId) || requestedName || 'Jogador'}
+          onCreated={(c) => {
+            setCharacter(c)
+            setCreating(false)
+          }}
+        />
+      )
+    }
+    return (
+      <CharacterChooser
+        tableName={table.name}
+        error={lookupError}
+        onEnterExisting={(name) => setSearchParams({ personagem: name })}
+        onCreateNew={() => setCreating(true)}
+      />
+    )
   }
-  return <PlayerView table={table} characterId={myCharacter.id} />
+
+  return <PlayerView table={table} characterId={character.id} uid={uid} />
 }
 
-function NicknamePrompt({ tableName, onSubmit }: { tableName: string; onSubmit: (nickname: string) => void }) {
-  const [value, setValue] = useState('')
+function CharacterChooser({
+  tableName,
+  error,
+  onEnterExisting,
+  onCreateNew,
+}: {
+  tableName: string
+  error?: string
+  onEnterExisting: (name: string) => void
+  onCreateNew: () => void
+}) {
+  const [name, setName] = useState('')
   return (
     <div className="mx-auto max-w-sm p-8">
       <Card className="flex flex-col gap-3 p-5">
-        <p className="text-purple-200">
-          Entrando na mesa <b>{tableName}</b>. Qual é o seu apelido?
-        </p>
-        <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="Seu apelido" />
-        <Button variant="primary" disabled={!value.trim()} onClick={() => onSubmit(value.trim())}>
-          Continuar
+        <SectionTitle>Mesa {tableName}</SectionTitle>
+        <p className="text-sm text-purple-200">Já tem um personagem aqui? Digite o nome dele para retomar a ficha.</p>
+        <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do personagem" />
+        <Button variant="primary" disabled={!name.trim()} onClick={() => onEnterExisting(name.trim())}>
+          Entrar com este personagem
         </Button>
+        <div className="flex items-center gap-2 text-xs text-purple-400/50">
+          <span className="h-px flex-1 bg-purple-900/50" /> ou <span className="h-px flex-1 bg-purple-900/50" />
+        </div>
+        <Button onClick={onCreateNew}>Criar um personagem novo</Button>
+        {error && <p className="text-sm text-red-400">{error}</p>}
       </Card>
     </div>
   )

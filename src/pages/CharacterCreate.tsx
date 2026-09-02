@@ -1,9 +1,9 @@
 import { useMemo, useState } from 'react'
-import { Badge, Button, Card, Input, Select, SectionTitle } from '../components/ui'
+import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
+import { Portrait } from '../components/Portrait'
 import {
   baseDefenseFromAgi,
   emptyAttributes,
-  recomputeMod,
   rollAllAttributes,
   rollStartingHp,
   sumModifiers,
@@ -14,10 +14,11 @@ import { newId } from '../lib/id'
 import { ARMORS, GEAR, WEAPONS } from '../data/equipment'
 import { OCCUPATIONS } from '../data/occupations'
 import { ORIGINS } from '../data/origins'
+import { SKILLS } from '../data/skills'
 import { NAMES } from '../data/names'
 import { createCharacter } from '../lib/store'
 import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
-import type { AttributeKey, Attributes, CarriedArmor, CarriedWeapon, Character, GameTable, InventoryItem } from '../types'
+import type { Attributes, CarriedArmor, CarriedWeapon, Character, GameTable, InventoryItem } from '../types'
 
 function splitList(text: string): string[] {
   if (!text || text === '—') return []
@@ -31,17 +32,22 @@ export function CharacterCreate({
   table,
   uid,
   nickname,
+  suggestedName,
   onCreated,
 }: {
   table: GameTable
   uid: string
   nickname: string
+  suggestedName?: string
   onCreated: (c: Character) => void
 }) {
-  const [name, setName] = useState('')
+  const [name, setName] = useState(suggestedName ?? '')
+  const [playerName, setPlayerName] = useState(nickname === 'Jogador' ? '' : nickname)
+  const [portraitUrl, setPortraitUrl] = useState('')
   const [occIdx, setOccIdx] = useState<number | null>(null)
   const [originIdx, setOriginIdx] = useState<number | null>(null)
   const [chosenOriginSkills, setChosenOriginSkills] = useState<string[]>([])
+  const [extraSkills, setExtraSkills] = useState<string[]>([])
   const [attributes, setAttributes] = useState<Attributes>(emptyAttributes())
   const [attributesRolled, setAttributesRolled] = useState(false)
   const [hp, setHp] = useState<number | null>(null)
@@ -49,27 +55,17 @@ export function CharacterCreate({
   const [weapons, setWeapons] = useState<CarriedWeapon[]>([])
   const [armor, setArmor] = useState<CarriedArmor[]>([])
   const [equipment, setEquipment] = useState<InventoryItem[]>([])
-  const [shopWeapon, setShopWeapon] = useState(WEAPONS[0].name)
-  const [shopArmor, setShopArmor] = useState(ARMORS[0].name)
-  const [shopGear, setShopGear] = useState(GEAR[0].name)
   const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   const occupation = occIdx !== null ? OCCUPATIONS[occIdx] : null
   const origin = originIdx !== null ? ORIGINS[originIdx] : null
   const originSkillCount = Math.max(1, attributes.sab.mod + 1)
   const baseDefense = baseDefenseFromAgi(attributes)
   const defense = totalDefense(baseDefense, armor)
-
   const occupationSkills = occupation ? splitList(occupation.habilidade) : []
 
-  function rollName() {
-    const r = roll1d66()
-    setName(NAMES[r.index36] ?? NAMES[0])
-  }
-
-  function rollOccupation() {
-    const r = roll1d66()
-    const idx = d66RangeIndex(r.value, OCCUPATIONS.map((o) => o.d66))
+  function pickOccupation(idx: number) {
     setOccIdx(idx)
     const occ = OCCUPATIONS[idx]
     const startWeapons: CarriedWeapon[] = splitList(occ.arma)
@@ -79,9 +75,7 @@ export function CharacterCreate({
     setWeapons(startWeapons)
   }
 
-  function rollOrigin() {
-    const r = roll1d66()
-    const idx = d66RangeIndex(r.value, ORIGINS.map((o) => o.d66))
+  function pickOrigin(idx: number) {
     setOriginIdx(idx)
     setChosenOriginSkills([])
   }
@@ -93,24 +87,6 @@ export function CharacterCreate({
     setHp(rollStartingHp(attrs))
   }
 
-  function rerollAttribute(key: AttributeKey) {
-    const attrs = { ...attributes }
-    const r = roll3d6()
-    const score = r.total <= 8 ? 9 : r.total
-    attrs[key] = { score, mod: recomputeMod(score) }
-    setAttributes(attrs)
-  }
-
-  function setManualScore(key: AttributeKey, score: number) {
-    const attrs = { ...attributes }
-    attrs[key] = { score, mod: recomputeMod(score) }
-    setAttributes(attrs)
-  }
-
-  function rollGold() {
-    setGold(roll3d6().total)
-  }
-
   function toggleOriginSkill(skill: string) {
     setChosenOriginSkills((prev) => {
       if (prev.includes(skill)) return prev.filter((s) => s !== skill)
@@ -119,35 +95,44 @@ export function CharacterCreate({
     })
   }
 
-  function buyWeapon() {
-    const w = WEAPONS.find((x) => x.name === shopWeapon)
-    if (!w || gold === null || gold < w.custo) return
-    setGold(gold - w.custo)
-    setWeapons((prev) => [...prev, { id: newId(), name: w.name, dano: w.dano, habilidade: w.habilidade, tipo: w.tipo, equipped: true }])
+  function toggleExtraSkill(skill: string) {
+    setExtraSkills((prev) => (prev.includes(skill) ? prev.filter((s) => s !== skill) : [...prev, skill]))
   }
 
-  function buyArmor() {
-    const a = ARMORS.find((x) => x.name === shopArmor)
-    if (!a || gold === null || gold < a.custo) return
-    setGold(gold - a.custo)
-    setArmor((prev) => [...prev, { id: newId(), name: a.name, defesaBonus: a.defesa, protecao: a.protecao, equipped: true }])
+  function buy(kind: 'weapon' | 'armor' | 'gear', itemName: string) {
+    if (gold === null) return
+    if (kind === 'weapon') {
+      const w = WEAPONS.find((x) => x.name === itemName)
+      if (!w || gold < w.custo) return
+      setGold(gold - w.custo)
+      setWeapons((prev) => [
+        ...prev,
+        { id: newId(), name: w.name, dano: w.dano, habilidade: w.habilidade, tipo: w.tipo, equipped: true },
+      ])
+    } else if (kind === 'armor') {
+      const a = ARMORS.find((x) => x.name === itemName)
+      if (!a || gold < a.custo) return
+      setGold(gold - a.custo)
+      setArmor((prev) => [
+        ...prev,
+        { id: newId(), name: a.name, defesaBonus: a.defesa, protecao: a.protecao, equipped: true },
+      ])
+    } else {
+      const g = GEAR.find((x) => x.name === itemName)
+      if (!g || gold < g.custo) return
+      setGold(gold - g.custo)
+      setEquipment((prev) => {
+        const existing = prev.find((i) => i.name === g.name)
+        if (existing) return prev.map((i) => (i.name === g.name ? { ...i, qty: i.qty + 1 } : i))
+        return [...prev, { id: newId(), name: g.name, qty: 1 }]
+      })
+    }
   }
 
-  function buyGear() {
-    const g = GEAR.find((x) => x.name === shopGear)
-    if (!g || gold === null || gold < g.custo) return
-    setGold(gold - g.custo)
-    setEquipment((prev) => {
-      const existing = prev.find((i) => i.name === g.name)
-      if (existing) return prev.map((i) => (i.name === g.name ? { ...i, qty: i.qty + 1 } : i))
-      return [...prev, { id: newId(), name: g.name, qty: 1 }]
-    })
-  }
-
-  const allSkills = useMemo(() => {
-    const set = new Set<string>([...occupationSkills, ...chosenOriginSkills])
-    return Array.from(set)
-  }, [occupationSkills, chosenOriginSkills])
+  const allSkills = useMemo(
+    () => Array.from(new Set([...occupationSkills, ...chosenOriginSkills, ...extraSkills])),
+    [occupationSkills, chosenOriginSkills, extraSkills],
+  )
 
   const canSubmit =
     name.trim().length > 0 &&
@@ -160,13 +145,15 @@ export function CharacterCreate({
   async function submit() {
     if (!canSubmit || !occupation || !origin || hp === null) return
     setSaving(true)
+    setError('')
     try {
       const now = Date.now()
       const character: Omit<Character, 'id'> = {
         tableId: table.id,
         ownerUid: uid,
-        playerNickname: nickname,
+        playerNickname: playerName.trim() || nickname,
         name: name.trim(),
+        nameLower: name.trim().toLowerCase(),
         occupation: occupation.name,
         origin: origin.name,
         attributes,
@@ -181,12 +168,15 @@ export function CharacterCreate({
         xp: 0,
         xpSpent: 0,
         notes: '',
+        portraitUrl: portraitUrl.trim() || undefined,
         createdAt: now,
         updatedAt: now,
         isAlive: true,
       }
       const created = await createCharacter(table.id, character)
       onCreated(created)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao criar o personagem.')
     } finally {
       setSaving(false)
     }
@@ -197,110 +187,178 @@ export function CharacterCreate({
       <div>
         <h1 className="font-serif text-2xl text-purple-100">Criar Personagem</h1>
         <p className="text-sm text-purple-300/60">
-          Mesa <span className="text-purple-200">{table.name}</span> · jogando como{' '}
-          <span className="text-purple-200">{nickname}</span>
+          Mesa <span className="text-purple-200">{table.name}</span> · escolha cada opção lendo as descrições, ou deixe
+          os dados decidirem.
         </p>
       </div>
 
+      {/* Identidade */}
       <Card className="flex flex-col gap-3 p-4">
-        <SectionTitle>Nome do Personagem</SectionTitle>
-        <div className="flex gap-2">
-          <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Ex: Cindar, o Andarilho" />
-          <Button onClick={rollName}>🎲 Rolar (1d66)</Button>
+        <SectionTitle>Identidade</SectionTitle>
+        <div className="flex gap-3">
+          <Portrait url={portraitUrl} name={name || '?'} size={64} />
+          <div className="flex flex-1 flex-col gap-2">
+            <div className="flex gap-2">
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Nome do personagem" />
+              <Button onClick={() => setName(NAMES[roll1d66().index36] ?? NAMES[0])}>🎲</Button>
+            </div>
+            <Input value={playerName} onChange={(e) => setPlayerName(e.target.value)} placeholder="Seu nome (jogador)" />
+            <Input
+              value={portraitUrl}
+              onChange={(e) => setPortraitUrl(e.target.value)}
+              placeholder="URL da foto de perfil (opcional)"
+            />
+          </div>
         </div>
+        <p className="text-xs text-purple-300/50">
+          A foto é carregada por link (ex: clique com o botão direito numa imagem da web → "Copiar endereço da imagem").
+        </p>
       </Card>
 
+      {/* Atributos */}
       <Card className="flex flex-col gap-3 p-4">
         <SectionTitle>Atributos</SectionTitle>
         <p className="text-xs text-purple-300/50">
-          3d6 por atributo (resultado 8 ou menos vira 9). PV = 1d6+6 + soma dos Modificadores.
+          Pelo manual, os Atributos são sempre sorteados: 3d6 cada (resultado 8 ou menos vira 9). PV = 1d6+6 + soma dos
+          Modificadores. Só o Mestre pode ajustar esses valores depois.
         </p>
         <Button variant="primary" onClick={doRollAttributes} className="self-start">
-          🎲 Rolar Atributos e PV
+          🎲 {attributesRolled ? 'Rolar novamente' : 'Rolar Atributos e PV'}
         </Button>
         {attributesRolled && (
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
-            {ATTRIBUTE_KEYS.map((k) => (
-              <div key={k} className="rounded-lg border border-purple-900/40 bg-black/20 p-2">
-                <div className="flex items-center justify-between text-xs text-purple-300/60">
-                  <span>{ATTRIBUTE_LABELS[k]}</span>
-                  <button className="text-purple-400 hover:text-purple-200" onClick={() => rerollAttribute(k)} title="Rolar de novo">
-                    ↻
-                  </button>
-                </div>
-                <div className="mt-1 flex items-center gap-2">
-                  <Input
-                    type="number"
-                    value={attributes[k].score}
-                    onChange={(e) => setManualScore(k, Number(e.target.value))}
-                    className="w-16 text-center"
-                  />
-                  <span className="text-sm text-purple-200">
+          <>
+            <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+              {ATTRIBUTE_KEYS.map((k) => (
+                <div key={k} className="rounded-lg border border-purple-900/40 bg-black/20 p-2 text-center">
+                  <p className="text-[10px] uppercase text-purple-400/60">{ATTRIBUTE_LABELS[k]}</p>
+                  <p className="text-lg text-purple-100">{attributes[k].score}</p>
+                  <p className="text-xs text-purple-300/60">
                     mod. {attributes[k].mod >= 0 ? '+' : ''}
                     {attributes[k].mod}
-                  </span>
+                  </p>
                 </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {attributesRolled && (
-          <div className="mt-1 flex flex-wrap gap-4 text-sm text-purple-200">
-            <span>
-              Soma dos Modificadores: <b>{sumModifiers(attributes)}</b>
-            </span>
-            <span>
-              Pontos de Vida: <b>{hp}</b>
-            </span>
-            <span>
-              Defesa base: <b>{baseDefense}</b> (10 + mod. Agilidade)
-            </span>
-          </div>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-4 text-sm text-purple-200">
+              <span>
+                Soma dos Modificadores: <b>{sumModifiers(attributes)}</b>
+              </span>
+              <span>
+                Pontos de Vida: <b>{hp}</b>
+              </span>
+              <span>
+                Defesa: <b>{defense}</b>
+              </span>
+            </div>
+          </>
         )}
       </Card>
 
+      {/* Ocupação */}
       <Card className="flex flex-col gap-3 p-4">
-        <SectionTitle>Ocupação (1d66)</SectionTitle>
-        <Button onClick={rollOccupation} className="self-start">
-          🎲 Rolar Ocupação
-        </Button>
-        {occupation && (
-          <div className="rounded-lg border border-purple-900/40 bg-black/20 p-3 text-sm">
-            <p className="font-semibold text-purple-100">{occupation.name}</p>
-            <p className="text-purple-300/70">Arma inicial: {occupation.arma}</p>
-            <p className="text-purple-300/70">Habilidades: {occupation.habilidade}</p>
-          </div>
-        )}
+        <div className="flex items-center justify-between">
+          <SectionTitle>Ocupação</SectionTitle>
+          <Button onClick={() => pickOccupation(d66RangeIndex(roll1d66().value, OCCUPATIONS.map((o) => o.d66)))}>
+            🎲 Sortear
+          </Button>
+        </div>
+        <div className="grid max-h-72 gap-1.5 overflow-y-auto sm:grid-cols-2">
+          {OCCUPATIONS.map((o, i) => (
+            <button
+              key={o.name}
+              onClick={() => pickOccupation(i)}
+              className={`rounded-lg border p-2 text-left text-sm transition ${
+                occIdx === i
+                  ? 'border-purple-500 bg-purple-900/30'
+                  : 'border-purple-900/30 bg-black/20 hover:border-purple-700'
+              }`}
+            >
+              <p className="text-purple-100">{o.name}</p>
+              <p className="text-xs text-purple-300/60">
+                Arma: {o.arma} · Habilidades: {o.habilidade}
+              </p>
+            </button>
+          ))}
+        </div>
       </Card>
 
+      {/* Origem */}
       <Card className="flex flex-col gap-3 p-4">
-        <SectionTitle>Origem (1d66)</SectionTitle>
-        <Button onClick={rollOrigin} className="self-start">
-          🎲 Rolar Origem
-        </Button>
+        <div className="flex items-center justify-between">
+          <SectionTitle>Origem</SectionTitle>
+          <Button onClick={() => pickOrigin(d66RangeIndex(roll1d66().value, ORIGINS.map((o) => o.d66)))}>🎲 Sortear</Button>
+        </div>
+        <div className="grid max-h-72 gap-1.5 overflow-y-auto sm:grid-cols-2">
+          {ORIGINS.map((o, i) => (
+            <button
+              key={o.name}
+              onClick={() => pickOrigin(i)}
+              className={`rounded-lg border p-2 text-left text-sm transition ${
+                originIdx === i
+                  ? 'border-purple-500 bg-purple-900/30'
+                  : 'border-purple-900/30 bg-black/20 hover:border-purple-700'
+              }`}
+            >
+              <p className="text-purple-100">{o.name}</p>
+              <p className="text-xs text-purple-300/60">{o.habilidades.join(', ')}</p>
+            </button>
+          ))}
+        </div>
         {origin && (
-          <div className="rounded-lg border border-purple-900/40 bg-black/20 p-3 text-sm">
-            <p className="font-semibold text-purple-100">{origin.name}</p>
-            <p className="mb-2 text-purple-300/70">
-              Escolha {originSkillCount} Habilidade{originSkillCount > 1 ? 's' : ''} (Modificador de Sabedoria + 1):
+          <div className="rounded-lg border border-purple-900/40 bg-black/20 p-3">
+            <p className="mb-2 text-sm text-purple-200">
+              Escolha {originSkillCount} Habilidade{originSkillCount > 1 ? 's' : ''} de {origin.name} (Modificador de
+              Sabedoria + 1):
             </p>
             <div className="flex flex-wrap gap-2">
-              {origin.habilidades.map((s) => (
-                <button
-                  key={s}
-                  onClick={() => toggleOriginSkill(s)}
-                  className={`rounded-full border px-3 py-1 text-xs ${
-                    chosenOriginSkills.includes(s)
-                      ? 'border-purple-500 bg-purple-700/50 text-white'
-                      : 'border-purple-900/50 text-purple-300/70 hover:border-purple-600'
-                  }`}
-                >
-                  {s}
-                </button>
-              ))}
+              {origin.habilidades.map((s) => {
+                const chosen = chosenOriginSkills.includes(s)
+                const def = SKILLS.find((x) => x.name === s)
+                return (
+                  <button
+                    key={s}
+                    onClick={() => toggleOriginSkill(s)}
+                    title={def?.description}
+                    className={`rounded-full border px-3 py-1 text-xs ${
+                      chosen
+                        ? 'border-purple-500 bg-purple-700/50 text-white'
+                        : 'border-purple-900/50 text-purple-300/70 hover:border-purple-600'
+                    }`}
+                  >
+                    {s}
+                  </button>
+                )
+              })}
             </div>
           </div>
         )}
+      </Card>
+
+      {/* Habilidades extras (opcional) */}
+      <Card className="flex flex-col gap-2 p-4">
+        <SectionTitle>Habilidades Extras (opcional)</SectionTitle>
+        <p className="text-xs text-purple-300/50">
+          O manual permite escolher Habilidades livremente como regra da casa. Combine com seu Mestre antes de marcar.
+        </p>
+        <div className="grid max-h-56 gap-1 overflow-y-auto sm:grid-cols-2">
+          {SKILLS.map((s) => {
+            const already = occupationSkills.includes(s.name) || chosenOriginSkills.includes(s.name)
+            const chosen = extraSkills.includes(s.name)
+            return (
+              <button
+                key={s.name}
+                disabled={already}
+                onClick={() => toggleExtraSkill(s.name)}
+                className={`rounded-lg border p-2 text-left text-xs transition disabled:opacity-40 ${
+                  chosen ? 'border-purple-500 bg-purple-900/30' : 'border-purple-900/30 bg-black/20 hover:border-purple-700'
+                }`}
+              >
+                <span className="text-purple-100">{s.name}</span>
+                <span className="block text-purple-300/60">{s.description}</span>
+              </button>
+            )
+          })}
+        </div>
       </Card>
 
       {allSkills.length > 0 && (
@@ -314,54 +372,29 @@ export function CharacterCreate({
         </Card>
       )}
 
+      {/* Equipamento inicial */}
       <Card className="flex flex-col gap-3 p-4">
         <SectionTitle>Tesouro Inicial e Equipamentos</SectionTitle>
-        <div className="flex items-center gap-2">
-          <Button onClick={rollGold}>🎲 Rolar Tesouro (3d6)</Button>
+        <div className="flex items-center gap-3">
+          <Button onClick={() => setGold(roll3d6().total)}>🎲 Rolar Tesouro (3d6)</Button>
           {gold !== null && (
             <span className="text-sm text-purple-200">
-              Moedas disponíveis: <b>{gold}</b>
+              Moedas: <b>{gold}</b>
             </span>
           )}
+          <span className="text-xs text-purple-300/50">A arma da Ocupação já vem sem custo.</span>
         </div>
 
         {gold !== null && (
           <div className="grid gap-3 sm:grid-cols-3">
-            <div className="flex flex-col gap-1">
-              <Select value={shopWeapon} onChange={(e) => setShopWeapon(e.target.value)}>
-                {WEAPONS.map((w) => (
-                  <option key={w.name} value={w.name}>
-                    {w.name} ({w.dano}) — {w.custo}
-                  </option>
-                ))}
-              </Select>
-              <Button onClick={buyWeapon}>Comprar Arma</Button>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Select value={shopArmor} onChange={(e) => setShopArmor(e.target.value)}>
-                {ARMORS.map((a) => (
-                  <option key={a.name} value={a.name}>
-                    {a.name} (+{a.defesa} Def) — {a.custo}
-                  </option>
-                ))}
-              </Select>
-              <Button onClick={buyArmor}>Comprar Armadura</Button>
-            </div>
-            <div className="flex flex-col gap-1">
-              <Select value={shopGear} onChange={(e) => setShopGear(e.target.value)}>
-                {GEAR.map((g) => (
-                  <option key={g.name} value={g.name}>
-                    {g.name} — {g.custo}
-                  </option>
-                ))}
-              </Select>
-              <Button onClick={buyGear}>Comprar Item</Button>
-            </div>
+            <ShopList title="Armas" items={WEAPONS.map((w) => ({ name: w.name, custo: w.custo, extra: w.dano }))} gold={gold} onBuy={(n) => buy('weapon', n)} />
+            <ShopList title="Armaduras" items={ARMORS.map((a) => ({ name: a.name, custo: a.custo, extra: `+${a.defesa} Def` }))} gold={gold} onBuy={(n) => buy('armor', n)} />
+            <ShopList title="Equipamentos" items={GEAR.map((g) => ({ name: g.name, custo: g.custo }))} gold={gold} onBuy={(n) => buy('gear', n)} />
           </div>
         )}
 
         {(weapons.length > 0 || armor.length > 0 || equipment.length > 0) && (
-          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+          <div className="grid gap-2 border-t border-purple-900/30 pt-3 sm:grid-cols-3">
             <div>
               <p className="mb-1 text-xs uppercase text-purple-400/70">Armas</p>
               {weapons.map((w) => (
@@ -377,7 +410,6 @@ export function CharacterCreate({
                   {a.name} (+{a.defesaBonus})
                 </p>
               ))}
-              <p className="mt-1 text-sm text-purple-300/70">Defesa total: {defense}</p>
             </div>
             <div>
               <p className="mb-1 text-xs uppercase text-purple-400/70">Equipamento</p>
@@ -391,9 +423,52 @@ export function CharacterCreate({
         )}
       </Card>
 
+      {error && <p className="text-sm text-red-400">{error}</p>}
       <Button variant="primary" disabled={!canSubmit || saving} onClick={submit} className="self-end px-6 py-2 text-base">
         {saving ? 'Criando...' : 'Entrar na Aventura ⚔️'}
       </Button>
+      {!canSubmit && (
+        <p className="self-end text-xs text-purple-300/50">
+          Faltando: {!name.trim() && 'nome · '}
+          {!attributesRolled && 'rolar atributos · '}
+          {!occupation && 'ocupação · '}
+          {!origin && 'origem · '}
+          {origin && chosenOriginSkills.length !== originSkillCount && 'habilidades da origem'}
+        </p>
+      )}
+    </div>
+  )
+}
+
+function ShopList({
+  title,
+  items,
+  gold,
+  onBuy,
+}: {
+  title: string
+  items: { name: string; custo: number; extra?: string }[]
+  gold: number
+  onBuy: (name: string) => void
+}) {
+  return (
+    <div className="rounded-lg border border-purple-900/30 bg-black/20 p-2">
+      <p className="mb-1 text-xs uppercase text-purple-400/70">{title}</p>
+      <div className="max-h-48 overflow-y-auto">
+        {items.map((i) => (
+          <button
+            key={i.name}
+            disabled={gold < i.custo}
+            onClick={() => onBuy(i.name)}
+            className="flex w-full items-center justify-between gap-2 rounded px-1 py-0.5 text-left text-xs text-purple-100 hover:bg-purple-900/30 disabled:opacity-30"
+          >
+            <span>
+              {i.name} {i.extra && <span className="text-purple-300/50">({i.extra})</span>}
+            </span>
+            <span className="text-amber-300/80">{i.custo}</span>
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
