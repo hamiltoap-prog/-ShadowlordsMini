@@ -12,6 +12,7 @@ import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
 import { authErrorMessage, changeGMPassword } from '../firebase'
 import { deleteCharacter, listenCharacters, listenNPCs, listenRollRequests, updateTable } from '../lib/store'
 import type { Character, GameTable, NPC } from '../types'
+import { CharacterCreate } from './CharacterCreate'
 import { PlayerView } from './PlayerView'
 
 type Tab = 'mesa' | 'personagens' | 'npcs' | 'combate' | 'tabelas' | 'config'
@@ -23,6 +24,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
   const [tab, setTab] = useState<Tab>('mesa')
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
+  const [creatingChar, setCreatingChar] = useState(false)
 
   useEffect(() => listenCharacters(table.id, setCharacters), [table.id])
   useEffect(() => listenNPCs(table.id, setNpcs), [table.id])
@@ -156,9 +158,12 @@ export function GMDashboard({ table }: { table: GameTable }) {
             {characters.map((c) => (
               <button
                 key={c.id}
-                onClick={() => setSelectedId(c.id)}
+                onClick={() => {
+                  setSelectedId(c.id)
+                  setCreatingChar(false)
+                }}
                 className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm ${
-                  selected?.id === c.id
+                  selected?.id === c.id && !creatingChar
                     ? 'border-purple-500 bg-purple-900/30'
                     : 'border-purple-900/30 bg-black/20 hover:border-purple-700'
                 }`}
@@ -167,14 +172,44 @@ export function GMDashboard({ table }: { table: GameTable }) {
                 <span>
                   <span className="block text-purple-100">{c.name}</span>
                   <span className="block text-xs text-purple-300/50">
-                    {c.playerNickname} · PV {c.hp.current}/{c.hp.max}
+                    {c.ownerUid === table.gmUid ? 'Personagem do Mestre' : c.playerNickname} · PV {c.hp.current}/
+                    {c.hp.max}
                   </span>
                 </span>
               </button>
             ))}
             {characters.length === 0 && <p className="text-sm text-purple-300/50">Nenhum personagem nesta mesa ainda.</p>}
+            <button
+              onClick={() => setCreatingChar(true)}
+              className={`rounded-lg border border-dashed px-3 py-2 text-sm ${
+                creatingChar
+                  ? 'border-purple-500 bg-purple-900/30 text-purple-100'
+                  : 'border-purple-800/50 text-purple-300/70 hover:border-purple-500'
+              }`}
+            >
+              + Criar personagem
+            </button>
           </div>
-          {selected && (
+
+          {creatingChar && (
+            <div className="rounded-xl border border-purple-800/40">
+              <p className="px-4 pt-3 text-xs uppercase tracking-wide text-purple-400/60">
+                Criando um personagem controlado pelo Mestre (um NPC importante, aliado ou substituto para um jogador
+                ausente).
+              </p>
+              <CharacterCreate
+                table={table}
+                uid={table.gmUid}
+                nickname="Mestre"
+                onCreated={(c) => {
+                  setSelectedId(c.id)
+                  setCreatingChar(false)
+                }}
+              />
+            </div>
+          )}
+
+          {!creatingChar && selected && (
             <div className="rounded-xl border border-purple-800/40">
               <div className="flex items-center justify-between gap-2 px-4 pt-3">
                 <p className="text-xs uppercase tracking-wide text-purple-400/60">

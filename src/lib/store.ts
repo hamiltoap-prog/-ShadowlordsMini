@@ -14,7 +14,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import type { Character, GameTable, LogEntry, NPC, RollRequest, Scene } from '../types'
+import type { Character, GameTable, LogEntry, NPC, RollRequest, Scene, SceneLibraryItem } from '../types'
 import { newId, newTableCode } from './id'
 
 function requireDb() {
@@ -287,7 +287,32 @@ export async function saveScene(tableId: string, scene: Scene) {
 }
 
 export function listenScene(tableId: string, cb: (scene: Scene | null) => void) {
-  return onSnapshot(sceneDoc(tableId), (snap) => {
-    cb(snap.exists() ? (snap.data() as Scene) : null)
+  return onSnapshot(
+    sceneDoc(tableId),
+    (snap) => cb(snap.exists() ? (snap.data() as Scene) : null),
+    (err) => console.error('Erro ao observar a cena', err),
+  )
+}
+
+// ---------- Biblioteca de mapas e tokens da mesa ----------
+
+export function sceneLibraryCol(tableId: string) {
+  return collection(requireDb(), 'tables', tableId, 'sceneLibrary')
+}
+
+export async function addSceneLibraryItem(tableId: string, item: Omit<SceneLibraryItem, 'id'>): Promise<SceneLibraryItem> {
+  const id = newId()
+  const full: SceneLibraryItem = { ...item, id }
+  await setDoc(doc(sceneLibraryCol(tableId), id), stripUndefined(full))
+  return full
+}
+
+export async function deleteSceneLibraryItem(tableId: string, itemId: string) {
+  await deleteDoc(doc(sceneLibraryCol(tableId), itemId))
+}
+
+export function listenSceneLibrary(tableId: string, cb: (items: SceneLibraryItem[]) => void) {
+  return onSnapshot(query(sceneLibraryCol(tableId), orderBy('createdAt', 'asc')), (snap) => {
+    cb(snap.docs.map((d) => d.data() as SceneLibraryItem))
   })
 }

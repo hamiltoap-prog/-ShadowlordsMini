@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { SPELLS } from '../data/spells'
+import { ancestryAttackBonus, ancestryDamageBonus, ancestrySpellBonus } from '../lib/ancestry'
 import { requestRoll, spendHpOnRoll } from '../lib/rollFlow'
 import { listenMyRollRequests } from '../lib/store'
 import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
@@ -32,6 +33,9 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
   const equipped = character.weapons.filter((w) => w.equipped)
   const weapon = equipped[weaponIdx] ?? equipped[0]
   const spell = SPELLS.find((s) => s.name === spellName) ?? SPELLS[0]
+  const raceAttackBonus = ancestryAttackBonus(character, weapon?.habilidade)
+  const raceDamageBonus = ancestryDamageBonus(character, weapon?.habilidade)
+  const raceSpellBonus = ancestrySpellBonus(character)
   const pending = myRequests.find((r) => r.status === 'pending')
   const lastResolved = myRequests.find((r) => r.status === 'approved' || r.status === 'denied')
 
@@ -40,6 +44,7 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
     setFeedback('')
     try {
       const skillLabel = skillName ? ` + ${skillName}` : ''
+      const raceLabel = (bonus: number) => (bonus ? ' + raça' : '')
       const intent =
         kind === 'attribute_test'
           ? {
@@ -54,9 +59,9 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
           : kind === 'attack'
             ? {
                 kind,
-                description: `Ataque com ${weapon?.name ?? 'desarmado'}${skillLabel} (Defesa ${targetDefense})`,
+                description: `Ataque com ${weapon?.name ?? 'desarmado'}${skillLabel}${raceLabel(raceAttackBonus)} (Defesa ${targetDefense})`,
                 attrKey,
-                attrMod,
+                attrMod: attrMod + raceAttackBonus,
                 skillBonus,
                 skillName,
                 target: targetDefense,
@@ -64,9 +69,9 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
             : kind === 'spell'
               ? {
                   kind,
-                  description: `Conjurar ${spell.name} (-${spell.custo} PV, ${ATTRIBUTE_LABELS[attrKey]})`,
+                  description: `Conjurar ${spell.name} (-${spell.custo} PV, ${ATTRIBUTE_LABELS[attrKey]}${raceLabel(raceSpellBonus)})`,
                   attrKey,
-                  attrMod,
+                  attrMod: attrMod + raceSpellBonus,
                   skillBonus,
                   skillName,
                   target: 13,
@@ -75,10 +80,10 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                 }
               : {
                   kind,
-                  description: `Dano com ${weapon?.name ?? 'desarmado'}`,
+                  description: `Dano com ${weapon?.name ?? 'desarmado'}${raceLabel(raceDamageBonus)}`,
                   weaponLabel: weapon?.name ?? 'Desarmado',
                   weaponDano: weapon?.dano ?? '1d3',
-                  damageAttrMod: damageAttr ? character.attributes[damageAttr].mod : 0,
+                  damageAttrMod: (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus,
                 }
       const { pendingId } = await requestRoll(table, character, uid, intent)
       setFeedback(pendingId ? 'Pedido enviado ao Mestre — aguardando liberação.' : 'Rolagem feita!')

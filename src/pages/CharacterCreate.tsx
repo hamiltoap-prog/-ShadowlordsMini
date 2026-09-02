@@ -9,16 +9,26 @@ import {
   sumModifiers,
   totalDefense,
 } from '../lib/characterMath'
-import { d66RangeIndex, roll1d66, roll3d6 } from '../lib/dice'
+import { d66RangeIndex, roll1d66, roll3d6, roll1d6 } from '../lib/dice'
 import { newId } from '../lib/id'
 import { ARMORS, GEAR, WEAPONS } from '../data/equipment'
 import { OCCUPATIONS } from '../data/occupations'
 import { ORIGINS } from '../data/origins'
 import { SKILLS } from '../data/skills'
 import { NAMES } from '../data/names'
+import { ANCESTRIES } from '../data/ancestry'
 import { createCharacter } from '../lib/store'
-import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
-import type { Attributes, CarriedArmor, CarriedWeapon, Character, GameTable, InventoryItem } from '../types'
+import { ANCESTRY_KEYS, ANCESTRY_LABELS, ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
+import type {
+  AncestryChoice,
+  AncestryKey,
+  Attributes,
+  CarriedArmor,
+  CarriedWeapon,
+  Character,
+  GameTable,
+  InventoryItem,
+} from '../types'
 
 function splitList(text: string): string[] {
   if (!text || text === '—') return []
@@ -44,6 +54,8 @@ export function CharacterCreate({
   const [name, setName] = useState(suggestedName ?? '')
   const [playerName, setPlayerName] = useState(nickname === 'Jogador' ? '' : nickname)
   const [portraitUrl, setPortraitUrl] = useState('')
+  const [ancestry, setAncestry] = useState<AncestryKey | null>(null)
+  const [ancestryChoice, setAncestryChoice] = useState<AncestryChoice>('ranged')
   const [occIdx, setOccIdx] = useState<number | null>(null)
   const [originIdx, setOriginIdx] = useState<number | null>(null)
   const [chosenOriginSkills, setChosenOriginSkills] = useState<string[]>([])
@@ -60,7 +72,7 @@ export function CharacterCreate({
 
   const occupation = occIdx !== null ? OCCUPATIONS[occIdx] : null
   const origin = originIdx !== null ? ORIGINS[originIdx] : null
-  const originSkillCount = Math.max(1, attributes.sab.mod + 1)
+  const originSkillCount = Math.max(1, attributes.sab.mod + 1) + (ancestry === 'humano' ? 1 : 0)
   const baseDefense = baseDefenseFromAgi(attributes)
   const defense = totalDefense(baseDefense, armor)
   const occupationSkills = occupation ? splitList(occupation.habilidade) : []
@@ -84,7 +96,13 @@ export function CharacterCreate({
     const attrs = rollAllAttributes()
     setAttributes(attrs)
     setAttributesRolled(true)
-    setHp(rollStartingHp(attrs))
+    setHp(rollStartingHp(attrs, ancestry ?? undefined))
+  }
+
+  function pickAncestry(key: AncestryKey) {
+    setAncestry(key)
+    // Recalcula o PV se os atributos já tinham sido rolados (Anão ganha +2 e vantagem).
+    if (attributesRolled) setHp(rollStartingHp(attributes, key))
   }
 
   function toggleOriginSkill(skill: string) {
@@ -136,6 +154,7 @@ export function CharacterCreate({
 
   const canSubmit =
     name.trim().length > 0 &&
+    ancestry !== null &&
     occupation !== null &&
     origin !== null &&
     attributesRolled &&
@@ -156,6 +175,10 @@ export function CharacterCreate({
         nameLower: name.trim().toLowerCase(),
         occupation: occupation.name,
         origin: origin.name,
+        ancestry: ancestry ?? undefined,
+        ancestryChoice: ancestry === 'elfo' ? ancestryChoice : undefined,
+        racialResourceUsed: 0,
+        conditions: [],
         attributes,
         hp: { current: hp, max: hp },
         defense,
@@ -215,6 +238,49 @@ export function CharacterCreate({
         </p>
       </Card>
 
+      {/* Ancestralidade */}
+      <Card className="flex flex-col gap-3 p-4">
+        <div className="flex items-center justify-between">
+          <SectionTitle>Ancestralidade</SectionTitle>
+          <Button onClick={() => pickAncestry(ANCESTRY_KEYS[roll1d6() - 1])}>🎲 Sortear</Button>
+        </div>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {ANCESTRIES.map((a) => (
+            <button
+              key={a.key}
+              onClick={() => pickAncestry(a.key)}
+              className={`rounded-lg border p-2 text-left text-sm transition ${
+                ancestry === a.key
+                  ? 'border-purple-500 bg-purple-900/30'
+                  : 'border-purple-900/30 bg-black/20 hover:border-purple-700'
+              }`}
+            >
+              <p className="text-purple-100">
+                {a.name} <span className="text-xs text-purple-300/60">— {a.title}</span>
+              </p>
+              <p className="text-xs text-purple-300/60">{a.description}</p>
+            </button>
+          ))}
+        </div>
+        {ancestry === 'elfo' && (
+          <div className="flex items-center gap-3 rounded-lg border border-purple-900/40 bg-black/20 p-2 text-sm">
+            <span className="text-purple-200">Visão Longínqua se aplica a:</span>
+            <label className="flex items-center gap-1 text-purple-200">
+              <input
+                type="radio"
+                checked={ancestryChoice === 'ranged'}
+                onChange={() => setAncestryChoice('ranged')}
+              />
+              Ataques à distância (Pontaria)
+            </label>
+            <label className="flex items-center gap-1 text-purple-200">
+              <input type="radio" checked={ancestryChoice === 'spell'} onChange={() => setAncestryChoice('spell')} />
+              Testes de conjuração
+            </label>
+          </div>
+        )}
+      </Card>
+
       {/* Atributos */}
       <Card className="flex flex-col gap-3 p-4">
         <SectionTitle>Atributos</SectionTitle>
@@ -249,6 +315,11 @@ export function CharacterCreate({
               <span>
                 Defesa: <b>{defense}</b>
               </span>
+              {ancestry && (
+                <span>
+                  Ancestralidade: <b>{ANCESTRY_LABELS[ancestry]}</b>
+                </span>
+              )}
             </div>
           </>
         )}
@@ -430,6 +501,7 @@ export function CharacterCreate({
       {!canSubmit && (
         <p className="self-end text-xs text-purple-300/50">
           Faltando: {!name.trim() && 'nome · '}
+          {!ancestry && 'ancestralidade · '}
           {!attributesRolled && 'rolar atributos · '}
           {!occupation && 'ocupação · '}
           {!origin && 'origem · '}

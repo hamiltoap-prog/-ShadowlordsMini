@@ -48,6 +48,28 @@ export interface CharacterSkill {
   description?: string
 }
 
+export const ANCESTRY_KEYS = ['anao', 'elfo', 'goblin', 'meio-orc', 'halfling', 'humano'] as const
+export type AncestryKey = (typeof ANCESTRY_KEYS)[number]
+
+export const ANCESTRY_LABELS: Record<AncestryKey, string> = {
+  anao: 'Anão',
+  elfo: 'Elfo',
+  goblin: 'Goblin',
+  'meio-orc': 'Meio-Orc',
+  halfling: 'Halfling',
+  humano: 'Humano',
+}
+
+/** Só o Elfo escolhe entre dois efeitos possíveis da própria característica. */
+export type AncestryChoice = 'ranged' | 'spell'
+
+export interface CharacterCondition {
+  id: string
+  label: string
+  note?: string
+  createdAt: number
+}
+
 export interface Character {
   id: string
   tableId: string
@@ -57,6 +79,11 @@ export interface Character {
   nameLower: string // usado para o jogador reencontrar a ficha pelo nome
   occupation: string
   origin: string
+  ancestry?: AncestryKey
+  ancestryChoice?: AncestryChoice
+  /** Usos gastos hoje do recurso racial do Halfling (Furtivo). Reseta manualmente. */
+  racialResourceUsed?: number
+  conditions: CharacterCondition[]
   attributes: Attributes
   hp: { current: number; max: number }
   defense: number
@@ -205,5 +232,17 @@ export interface SceneToken {
 export interface Scene {
   backgroundUrl: string
   tokens: SceneToken[]
+  /** Quando falso, os jogadores veem uma tela de espera enquanto o Mestre prepara a cena. */
+  revealed: boolean
   updatedAt: number
+}
+
+/** Item salvo na biblioteca da mesa: um mapa ou um preset de token (monstro/NPC/chefe). */
+export interface SceneLibraryItem {
+  id: string
+  kind: 'map' | 'token'
+  label: string
+  imageUrl?: string
+  tokenKind?: SceneTokenKind // presente quando kind === 'token'
+  createdAt: number
 }

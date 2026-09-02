@@ -9,10 +9,16 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   dupla nem ação fora de hora (o Mestre pode desligar isso quando quiser)
 - 🎬 **Animação de dados** aparece para a mesa inteira a cada rolagem; o Mestre também tem
   rolagem secreta, que só ele enxerga
-- 🗺️ **Tela de jogo** em aba separada: o Mestre monta o mapa e arrasta ícones de personagens,
-  NPCs, monstros e chefes; os jogadores acompanham em tempo real, sem poder mexer
-- 🧙 Painel do Mestre: NPCs/monstros do Bestiário, rastreador de combate, tabelas aleatórias,
-  referência completa das regras, e edição de atributos, PV, defesa e moedas de qualquer ficha
+- 🗺️ **Tela de jogo** em aba separada, com zoom e navegação livres para cada um: o Mestre monta
+  o mapa e arrasta ícones de personagens, NPCs, monstros e chefes; os jogadores acompanham em
+  tempo real, sem poder mexer. Uma **tela de espera** cobre tudo enquanto o Mestre prepara a
+  cena, e uma **biblioteca da mesa** guarda mapas e monstros favoritos para reusar depois
+- 🧬 **Ancestralidades** (Anão, Elfo, Goblin, Meio-Orc, Halfling, Humano) com suas
+  características próprias aplicadas automaticamente nas rolagens
+- 🩹 **Condições de status** (envenenado, paralisado, etc.) que o Mestre marca em qualquer ficha
+- 🧙 Painel do Mestre: cria NPCs simples do Bestiário **ou personagens completos** (aliados,
+  vilões, substitutos), rastreador de combate, tabelas aleatórias, referência completa das
+  regras, e edição de atributos, PV, defesa e moedas de qualquer ficha
 - ⚔️ Criação de personagem escolhendo cada opção (ou sorteando nos dados), com foto de perfil
 - 🛒 Loja liberada pelo Mestre: compras só acontecem quando o grupo está num lugar de comércio
 - 🔗 Entrada de qualquer aparelho: jogador entra com o código da mesa + nome do personagem;

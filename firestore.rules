@@ -81,10 +81,18 @@ service cloud.firestore {
         allow delete: if isGM(tableId);
       }
 
-      // Tela de jogo: todos veem, só o Mestre mexe.
+      // Tela de jogo: todos leem (a tela de espera é decidida no cliente pelo
+      // campo `revealed` — negar a leitura no Firestore mataria o listener em
+      // tempo real do jogador, que não se reconecta sozinho quando o Mestre
+      // revela depois). Só o Mestre escreve.
       match /scene/{sceneId} {
         allow read: if signedIn();
         allow write: if isGM(tableId);
+      }
+
+      // Biblioteca de mapas e tokens salvos pelo Mestre: só ele usa.
+      match /sceneLibrary/{itemId} {
+        allow read, write: if isGM(tableId);
       }
     }
   }

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ActionPanel } from '../components/ActionPanel'
+import { ConditionsBadges } from '../components/ConditionsBadges'
+import { ConditionsEditor } from '../components/ConditionsEditor'
 import { DiceOverlay } from '../components/DiceOverlay'
 import { LogFeed } from '../components/LogFeed'
 import { Portrait } from '../components/Portrait'
@@ -8,10 +10,11 @@ import { XpPanel } from '../components/XpPanel'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
 import { ARMORS, GEAR, WEAPONS } from '../data/equipment'
 import { logNote } from '../lib/actions'
+import { ancestryTraitLabel } from '../lib/ancestry'
 import { totalDefense } from '../lib/characterMath'
 import { newId } from '../lib/id'
 import { listenCharacter, updateCharacter } from '../lib/store'
-import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
+import { ANCESTRY_LABELS, ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
 import type { Character, GameTable } from '../types'
 
 /**
@@ -147,6 +150,7 @@ export function PlayerView({
               <div>
                 <h1 className="font-serif text-2xl text-purple-100">{character.name}</h1>
                 <p className="text-sm text-purple-300/60">
+                  {character.ancestry && `${ANCESTRY_LABELS[character.ancestry]} · `}
                   {character.occupation} · {character.origin}
                 </p>
                 <p className="text-xs text-purple-300/40">Jogador: {character.playerNickname}</p>
@@ -212,6 +216,22 @@ export function PlayerView({
               )}
             </div>
           </div>
+
+          {(character.ancestry || (character.conditions ?? []).length > 0 || asGM) && (
+            <div className="mt-3 flex flex-col gap-2 border-t border-purple-900/30 pt-3">
+              {character.ancestry && (
+                <p className="text-xs text-purple-300/60">🧬 {ancestryTraitLabel(character)}</p>
+              )}
+              {character.ancestry === 'halfling' && (
+                <HalflingResource table={table} character={character} asGM={asGM} />
+              )}
+              {asGM ? (
+                <ConditionsEditor tableId={table.id} character={character} />
+              ) : (
+                <ConditionsBadges conditions={character.conditions ?? []} />
+              )}
+            </div>
+          )}
         </Card>
 
         {/* Atributos */}
@@ -427,6 +447,37 @@ export function PlayerView({
       <div className="lg:sticky lg:top-4">
         <LogFeed tableId={table.id} />
       </div>
+    </div>
+  )
+}
+
+function HalflingResource({ table, character, asGM }: { table: GameTable; character: Character; asGM: boolean }) {
+  const used = character.racialResourceUsed ?? 0
+  const available = used < 1
+  const actor = { tableId: table.id, actorName: character.name, actorType: 'player' as const, characterId: character.id }
+
+  async function use() {
+    await updateCharacter(table.id, character.id, { racialResourceUsed: used + 1 })
+    await logNote(actor, 'usou Furtivo — ficou invisível por 3 rodadas', 'note')
+  }
+
+  async function reset() {
+    await updateCharacter(table.id, character.id, { racialResourceUsed: 0 })
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-purple-300/70">
+      <span>Furtivo (Halfling): {available ? 'disponível hoje' : 'já usado hoje'}</span>
+      {available && (
+        <Button onClick={use} className="px-2 py-0.5 text-xs">
+          Usar (invisível 3 rodadas)
+        </Button>
+      )}
+      {asGM && !available && (
+        <button className="text-purple-400 hover:text-purple-200" onClick={reset}>
+          resetar (novo dia)
+        </button>
+      )}
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import type { AttributeKey, Attributes, CarriedArmor } from '../types'
+import type { AncestryKey, AttributeKey, Attributes, CarriedArmor } from '../types'
 import { ATTRIBUTE_KEYS } from '../types'
 import { attributeModFromScore, rollAttributeScore, roll } from './dice'
 
@@ -21,9 +21,13 @@ export function sumModifiers(attrs: Attributes): number {
   return ATTRIBUTE_KEYS.reduce((sum, k) => sum + attrs[k].mod, 0)
 }
 
-export function rollStartingHp(attrs: Attributes): number {
-  const r = roll('1d6+6')
-  return r.total + sumModifiers(attrs)
+/** PV inicial: 1d6+6 + soma dos Modificadores (pág. 22). Anões rolam o dado
+ * com vantagem (duas rolagens, fica com a maior) e somam +2 PV (Robusto). */
+export function rollStartingHp(attrs: Attributes, ancestry?: AncestryKey): number {
+  const first = roll('1d6+6')
+  const best = ancestry === 'anao' ? Math.max(first.total, roll('1d6+6').total) : first.total
+  const bonus = ancestry === 'anao' ? 2 : 0
+  return best + sumModifiers(attrs) + bonus
 }
 
 export function baseDefenseFromAgi(attrs: Attributes): number {
