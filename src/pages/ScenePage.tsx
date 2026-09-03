@@ -41,6 +41,16 @@ const KIND_DOT: Record<SceneTokenKind, string> = {
 }
 
 const EMPTY_SCENE: Scene = { backgroundUrl: '', tokens: [], revealed: false, updatedAt: 0 }
+
+/** Escuridão do local sem luz: forte o bastante para pesar, fraca o bastante
+ * para o grupo continuar enxergando o mapa e as peças. */
+const DARKNESS_ALPHA = 0.5
+/** Raio (px do tabuleiro, acompanha o zoom) totalmente livre de escuridão. */
+const LIGHT_RADIUS = 145
+/** Onde a escuridão volta ao máximo, depois da transição suave. */
+const DARK_HOLE_RADIUS = 300
+/** Alcance do brilho quente somado por cima (efeito de tocha). */
+const GLOW_RADIUS = 195
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 3.5
 const NO_FOLDER = '(Sem pasta)'
@@ -259,22 +269,31 @@ export function ScenePage() {
 
   // Sem luz no local: escurece o mapa inteiro, com "furos" de luz ao redor de
   // cada personagem com uma fonte de iluminação ativa (lightUntil no futuro).
-  const litTokens = locationLit
-    ? []
-    : visibleTokens.filter((t) => {
-        if (t.refType !== 'character') return false
-        const c = characters.find((x) => x.id === t.refId)
-        return Boolean(c?.lightUntil && c.lightUntil > now)
-      })
-  const darknessBackground = locationLit
-    ? undefined
-    : [
-        ...litTokens.map(
-          (t) =>
-            `radial-gradient(circle at ${t.x * 100}% ${t.y * 100}%, transparent 0%, transparent 11%, rgba(40,26,10,0.45) 18%, rgba(3,3,8,0.93) 28%)`,
-        ),
-        'linear-gradient(rgba(3,3,8,0.93), rgba(3,3,8,0.93))',
-      ].join(', ')
+  const litTokens = visibleTokens.filter((t) => {
+    if (t.refType !== 'character') return false
+    const c = characters.find((x) => x.id === t.refId)
+    return Boolean(c?.lightUntil && c.lightUntil > now)
+  })
+  // A escuridão deixa o mapa sombrio, mas nunca cega: ainda dá para enxergar o
+  // cenário e as peças fora do alcance da luz — só com bem menos nitidez.
+  // As camadas ficam sempre montadas e só mudam de opacidade, para a escuridão
+  // entrar e sair junto com a transição do céu em vez de aparecer de estalo.
+  const darknessBackground = [
+    ...litTokens.map(
+      (t) =>
+        `radial-gradient(circle ${DARK_HOLE_RADIUS}px at ${t.x * 100}% ${t.y * 100}%, rgba(3,4,12,0) 0px, rgba(3,4,12,0) ${LIGHT_RADIUS}px, rgba(3,4,12,0.3) ${Math.round(LIGHT_RADIUS * 1.55)}px, rgba(3,4,12,${DARKNESS_ALPHA}) ${DARK_HOLE_RADIUS}px)`,
+    ),
+    `linear-gradient(rgba(3,4,12,${DARKNESS_ALPHA}), rgba(3,4,12,${DARKNESS_ALPHA}))`,
+  ].join(', ')
+
+  // Camada aditiva (blend "screen"): a tocha realmente clareia o que está por
+  // perto, em vez de apenas "furar" a escuridão.
+  const lightGlowBackground = litTokens
+    .map(
+      (t) =>
+        `radial-gradient(circle ${GLOW_RADIUS}px at ${t.x * 100}% ${t.y * 100}%, rgba(255,205,135,0.62) 0px, rgba(255,182,96,0.4) ${Math.round(GLOW_RADIUS * 0.35)}px, rgba(120,70,20,0.12) ${Math.round(GLOW_RADIUS * 0.7)}px, rgba(0,0,0,0) ${GLOW_RADIUS}px)`,
+    )
+    .join(', ')
 
   return (
     <div className="flex min-h-screen flex-col gap-3 p-3">
@@ -334,7 +353,7 @@ export function ScenePage() {
           {/* Tom ambiente de dia/noite — não acompanha o zoom/pan, é a "luz do céu". */}
           <div
             className="pointer-events-none absolute inset-0 z-[4] transition-colors duration-[2500ms] ease-in-out"
-            style={{ backgroundColor: timeOfDay === 'night' ? 'rgba(2, 2, 8, 0.78)' : 'rgba(120, 55, 45, 0.16)' }}
+            style={{ backgroundColor: timeOfDay === 'night' ? 'rgba(4, 6, 20, 0.4)' : 'rgba(120, 55, 45, 0.16)' }}
           />
           <div
             className="pointer-events-none absolute inset-0 z-[4] transition-opacity duration-[2500ms] ease-in-out"
@@ -414,10 +433,18 @@ export function ScenePage() {
               />
             ))}
 
-            {darknessBackground && (
+            <div
+              className="pointer-events-none absolute inset-0 z-[3] transition-opacity duration-[2000ms] ease-in-out"
+              style={{ backgroundImage: darknessBackground, opacity: locationLit ? 0 : 1 }}
+            />
+            {lightGlowBackground && (
               <div
-                className="pointer-events-none absolute inset-0 z-[3] transition-opacity duration-1000"
-                style={{ backgroundImage: darknessBackground }}
+                className="pointer-events-none absolute inset-0 z-[4] transition-opacity duration-[2000ms] ease-in-out"
+                style={{
+                  backgroundImage: lightGlowBackground,
+                  mixBlendMode: 'screen',
+                  opacity: locationLit ? 0 : 1,
+                }}
               />
             )}
           </div>
