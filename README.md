@@ -24,6 +24,9 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   transição a cada troca. O Mestre também decide se o local atual está iluminado (uma sala com
   tochas à noite, ou um porão escuro em pleno dia); sem luz, o mapa escurece e só os personagens
   com uma fonte de luz acesa enxergam ao redor de si
+- 👁️ **Emboscada no escuro**: com o local às escuras, monstros e chefes fora do alcance de
+  qualquer luz simplesmente somem da tela dos jogadores. O Mestre continua vendo todos, com um
+  selo de "olho cortado" marcando quem está oculto — personagens e NPCs seguem visíveis
 - 🔥 **Itens de iluminação com contador real**: o jogador acende uma fonte de luz (padrão 1
   hora, ajustável) que ilumina seu personagem na tela de jogo até o tempo acabar — o Mestre
   pode apagar a qualquer momento

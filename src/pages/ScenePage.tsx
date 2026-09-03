@@ -45,12 +45,20 @@ const EMPTY_SCENE: Scene = { backgroundUrl: '', tokens: [], revealed: false, upd
 /** Escuridão do local sem luz: forte o bastante para pesar, fraca o bastante
  * para o grupo continuar enxergando o mapa e as peças. */
 const DARKNESS_ALPHA = 0.5
-/** Raio (px do tabuleiro, acompanha o zoom) totalmente livre de escuridão. */
-const LIGHT_RADIUS = 145
-/** Onde a escuridão volta ao máximo, depois da transição suave. */
-const DARK_HOLE_RADIUS = 300
-/** Alcance do brilho quente somado por cima (efeito de tocha). */
-const GLOW_RADIUS = 195
+/**
+ * Alcance da luz como fração da largura/altura do tabuleiro (e não em px):
+ * assim a luz é exatamente a mesma em qualquer tela — o que importa agora que
+ * ela decide quais criaturas os jogadores enxergam. Os dois valores diferentes
+ * compensam o formato do tabuleiro, deixando a poça de luz redonda na prática.
+ */
+const LIGHT_RX = 0.24
+const LIGHT_RY = 0.555
+/** Fração do alcance que fica totalmente livre de escuridão. */
+const LIGHT_CLEAR = 0.48
+/** Até onde a luz ainda revela uma criatura para os jogadores. */
+const LIGHT_REVEAL = 0.62
+/** Tamanho do brilho quente (efeito de tocha) sobre o alcance da luz. */
+const GLOW_SCALE = 0.65
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 3.5
 const NO_FOLDER = '(Sem pasta)'
@@ -264,24 +272,43 @@ export function ScenePage() {
 
   const showWaitingScreen = !isGM && (sceneState === null || !sceneState.revealed)
   // Jogadores nunca veem tokens ainda "preparados" na bandeja do Mestre.
-  const visibleTokens = scene.tokens.filter((t) => isGM || t.onBoard !== false)
+  const boardTokens = scene.tokens.filter((t) => t.onBoard !== false)
   const stagedTokens = scene.tokens.filter((t) => t.onBoard === false)
 
   // Sem luz no local: escurece o mapa inteiro, com "furos" de luz ao redor de
   // cada personagem com uma fonte de iluminação ativa (lightUntil no futuro).
-  const litTokens = visibleTokens.filter((t) => {
+  const litTokens = boardTokens.filter((t) => {
     if (t.refType !== 'character') return false
     const c = characters.find((x) => x.id === t.refId)
     return Boolean(c?.lightUntil && c.lightUntil > now)
   })
+
+  /**
+   * No escuro, monstros e chefes fora do alcance de qualquer luz somem da tela
+   * dos jogadores — o Mestre continua vendo, marcados como ocultos. Personagens
+   * e NPCs seguem visíveis: o grupo sabe onde os seus estão.
+   */
+  function hiddenInTheDark(t: SceneToken) {
+    if (locationLit) return false
+    if (t.kind !== 'monster' && t.kind !== 'boss') return false
+    return !litTokens.some((l) => {
+      const dx = (t.x - l.x) / (LIGHT_RX * LIGHT_REVEAL)
+      const dy = (t.y - l.y) / (LIGHT_RY * LIGHT_REVEAL)
+      return dx * dx + dy * dy <= 1
+    })
+  }
+
+  const visibleTokens = isGM ? scene.tokens : boardTokens.filter((t) => !hiddenInTheDark(t))
   // A escuridão deixa o mapa sombrio, mas nunca cega: ainda dá para enxergar o
   // cenário e as peças fora do alcance da luz — só com bem menos nitidez.
   // As camadas ficam sempre montadas e só mudam de opacidade, para a escuridão
   // entrar e sair junto com a transição do céu em vez de aparecer de estalo.
+  const darkEllipse = `${(LIGHT_RX * 100).toFixed(2)}% ${(LIGHT_RY * 100).toFixed(2)}%`
+  const glowEllipse = `${(LIGHT_RX * GLOW_SCALE * 100).toFixed(2)}% ${(LIGHT_RY * GLOW_SCALE * 100).toFixed(2)}%`
   const darknessBackground = [
     ...litTokens.map(
       (t) =>
-        `radial-gradient(circle ${DARK_HOLE_RADIUS}px at ${t.x * 100}% ${t.y * 100}%, rgba(3,4,12,0) 0px, rgba(3,4,12,0) ${LIGHT_RADIUS}px, rgba(3,4,12,0.3) ${Math.round(LIGHT_RADIUS * 1.55)}px, rgba(3,4,12,${DARKNESS_ALPHA}) ${DARK_HOLE_RADIUS}px)`,
+        `radial-gradient(ellipse ${darkEllipse} at ${t.x * 100}% ${t.y * 100}%, rgba(3,4,12,0) 0%, rgba(3,4,12,0) ${LIGHT_CLEAR * 100}%, rgba(3,4,12,0.3) 74%, rgba(3,4,12,${DARKNESS_ALPHA}) 100%)`,
     ),
     `linear-gradient(rgba(3,4,12,${DARKNESS_ALPHA}), rgba(3,4,12,${DARKNESS_ALPHA}))`,
   ].join(', ')
@@ -291,7 +318,7 @@ export function ScenePage() {
   const lightGlowBackground = litTokens
     .map(
       (t) =>
-        `radial-gradient(circle ${GLOW_RADIUS}px at ${t.x * 100}% ${t.y * 100}%, rgba(255,205,135,0.62) 0px, rgba(255,182,96,0.4) ${Math.round(GLOW_RADIUS * 0.35)}px, rgba(120,70,20,0.12) ${Math.round(GLOW_RADIUS * 0.7)}px, rgba(0,0,0,0) ${GLOW_RADIUS}px)`,
+        `radial-gradient(ellipse ${glowEllipse} at ${t.x * 100}% ${t.y * 100}%, rgba(255,205,135,0.62) 0%, rgba(255,182,96,0.4) 35%, rgba(120,70,20,0.12) 70%, rgba(0,0,0,0) 100%)`,
     )
     .join(', ')
 
@@ -422,6 +449,7 @@ export function ScenePage() {
                 key={t.id}
                 token={t}
                 isGM={isGM}
+                hiddenFromPlayers={isGM && hiddenInTheDark(t)}
                 characters={characters}
                 npcs={npcs}
                 onPointerDown={(e) => {
@@ -526,12 +554,15 @@ function SceneTokenThumb({ token }: { token: SceneToken }) {
 function SceneTokenView({
   token: t,
   isGM,
+  hiddenFromPlayers = false,
   characters,
   npcs,
   onPointerDown,
 }: {
   token: SceneToken
   isGM: boolean
+  /** Só o Mestre está vendo esta criatura: ela está no escuro para os jogadores. */
+  hiddenFromPlayers?: boolean
   characters: Character[]
   npcs: NPC[]
   onPointerDown: (e: React.PointerEvent) => void
@@ -551,7 +582,7 @@ function SceneTokenView({
       className={`absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-full ${
         isBoss ? 'ring-[5px] animate-boss-glow' : 'ring-2'
       } ${KIND_STYLE[t.kind]} ${statusRing} ${isGM ? 'cursor-grab active:cursor-grabbing' : ''} ${
-        t.onBoard === false ? 'opacity-40' : ''
+        t.onBoard === false ? 'opacity-40' : hiddenFromPlayers ? 'opacity-60' : ''
       }`}
       style={{
         left: `${t.x * 100}%`,
@@ -559,8 +590,20 @@ function SceneTokenView({
         width: `${t.size * 100}%`,
         aspectRatio: '1 / 1',
       }}
-      title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
+      title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${hiddenFromPlayers ? ' — no escuro: os jogadores não veem' : ''}${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
     >
+      {hiddenFromPlayers && (
+        <span
+          title="No escuro — os jogadores não veem esta criatura"
+          className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-slate-900/60 bg-slate-100 text-slate-900 shadow"
+        >
+          <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+            <path d="M3 3l18 18" />
+            <path d="M10.6 5.3A9.6 9.6 0 0 1 12 5.2c5 0 9 4.3 9 6.8 0 .9-.9 2.4-2.4 3.8M6.2 7.5C4 9 3 10.9 3 12c0 2.5 4 6.8 9 6.8 1.5 0 2.9-.4 4.1-1" />
+            <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+          </svg>
+        </span>
+      )}
       {isBoss && (
         <svg
           viewBox="0 0 24 24"
