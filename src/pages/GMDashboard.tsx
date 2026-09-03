@@ -34,6 +34,10 @@ export function GMDashboard({ table }: { table: GameTable }) {
   )
 
   const selected = characters.find((c) => c.id === selectedId) ?? null
+  // Personagens criados pelo próprio Mestre (aliados, vilões, substitutos) contam
+  // como NPCs e aparecem junto com as outras criaturas, não com os jogadores.
+  const players = characters.filter((c) => c.ownerUid !== table.gmUid)
+  const gmCharacters = characters.filter((c) => c.ownerUid === table.gmUid)
 
   function copyCode() {
     navigator.clipboard?.writeText(table.code).then(() => {
@@ -72,8 +76,8 @@ export function GMDashboard({ table }: { table: GameTable }) {
         {(
           [
             ['mesa', `Mesa${pendingCount > 0 ? ` (${pendingCount}!)` : ''}`],
-            ['personagens', `Personagens (${characters.length})`],
-            ['npcs', `NPCs / Monstros (${npcs.length})`],
+            ['personagens', `Personagens (${players.length})`],
+            ['npcs', `NPCs (${gmCharacters.length + npcs.length})`],
             ['combate', 'Combate'],
             ['tabelas', 'Tabelas & Referência'],
             ['config', 'Configurações'],
@@ -118,7 +122,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
             <Card className="p-4">
               <SectionTitle className="mb-2">Personagens</SectionTitle>
               <div className="flex flex-col gap-1.5">
-                {characters.map((c) => (
+                {players.map((c) => (
                   <div key={c.id} className="flex items-center gap-2 rounded-lg border border-purple-900/30 bg-black/20 p-2">
                     <Portrait url={c.portraitUrl} name={c.name} size={36} />
                     <div className="min-w-0 flex-1">
@@ -140,7 +144,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
                     </button>
                   </div>
                 ))}
-                {characters.length === 0 && (
+                {players.length === 0 && (
                   <p className="text-sm text-purple-300/50">
                     Nenhum jogador entrou ainda. Compartilhe o código <b>{table.code}</b>.
                   </p>
@@ -155,7 +159,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
       {tab === 'personagens' && (
         <div className="flex flex-col gap-3">
           <div className="flex flex-wrap gap-2">
-            {characters.map((c) => (
+            {players.map((c) => (
               <button
                 key={c.id}
                 onClick={() => {
@@ -172,68 +176,116 @@ export function GMDashboard({ table }: { table: GameTable }) {
                 <span>
                   <span className="block text-purple-100">{c.name}</span>
                   <span className="block text-xs text-purple-300/50">
-                    {c.ownerUid === table.gmUid ? 'Personagem do Mestre' : c.playerNickname} · PV {c.hp.current}/
-                    {c.hp.max}
+                    {c.playerNickname} · PV {c.hp.current}/{c.hp.max}
                   </span>
                 </span>
               </button>
             ))}
-            {characters.length === 0 && <p className="text-sm text-purple-300/50">Nenhum personagem nesta mesa ainda.</p>}
-            <button
-              onClick={() => setCreatingChar(true)}
-              className={`rounded-lg border border-dashed px-3 py-2 text-sm ${
-                creatingChar
-                  ? 'border-purple-500 bg-purple-900/30 text-purple-100'
-                  : 'border-purple-800/50 text-purple-300/70 hover:border-purple-500'
-              }`}
-            >
-              + Criar personagem
-            </button>
+            {players.length === 0 && <p className="text-sm text-purple-300/50">Nenhum jogador entrou ainda.</p>}
           </div>
 
-          {creatingChar && (
+          {selected && players.some((c) => c.id === selected.id) && (
             <div className="rounded-xl border border-purple-800/40">
               <p className="px-4 pt-3 text-xs uppercase tracking-wide text-purple-400/60">
-                Criando um personagem controlado pelo Mestre (um NPC importante, aliado ou substituto para um jogador
-                ausente).
+                Controlando a ficha de {selected.name} como Mestre — você pode editar atributos, PV, defesa e moedas.
               </p>
-              <CharacterCreate
-                table={table}
-                uid={table.gmUid}
-                nickname="Mestre"
-                onCreated={(c) => {
-                  setSelectedId(c.id)
-                  setCreatingChar(false)
-                }}
-              />
-            </div>
-          )}
-
-          {!creatingChar && selected && (
-            <div className="rounded-xl border border-purple-800/40">
-              <div className="flex items-center justify-between gap-2 px-4 pt-3">
-                <p className="text-xs uppercase tracking-wide text-purple-400/60">
-                  Controlando a ficha de {selected.name} como Mestre — você pode editar atributos, PV, defesa e moedas.
-                </p>
-                <button
-                  className="text-xs text-red-400 hover:text-red-200"
-                  onClick={() => {
-                    if (confirm(`Remover ${selected.name} da mesa? Isso apaga o personagem.`)) {
-                      deleteCharacter(table.id, selected.id)
-                      setSelectedId(null)
-                    }
-                  }}
-                >
-                  remover personagem
-                </button>
-              </div>
               <PlayerView table={table} characterId={selected.id} uid={table.gmUid} asGM />
             </div>
           )}
         </div>
       )}
 
-      {tab === 'npcs' && <NpcManager table={table} npcs={npcs} characters={characters} />}
+      {tab === 'npcs' && (
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-3">
+            <div>
+              <SectionTitle>🧙 NPCs</SectionTitle>
+              <p className="mt-0.5 text-xs text-purple-300/50">
+                Personagens com ficha completa controlados por você — aliados, vilões ou substitutos para um jogador
+                ausente. Aparecem aqui automaticamente, prontos para ir à bandeja da tela de jogo.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {gmCharacters.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => {
+                    setSelectedId(c.id)
+                    setCreatingChar(false)
+                  }}
+                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm ${
+                    selected?.id === c.id && !creatingChar
+                      ? 'border-purple-500 bg-purple-900/30'
+                      : 'border-purple-900/30 bg-black/20 hover:border-purple-700'
+                  }`}
+                >
+                  <Portrait url={c.portraitUrl} name={c.name} size={32} />
+                  <span>
+                    <span className="block text-purple-100">{c.name}</span>
+                    <span className="block text-xs text-purple-300/50">
+                      PV {c.hp.current}/{c.hp.max} · Def {c.defense}
+                    </span>
+                  </span>
+                </button>
+              ))}
+              {gmCharacters.length === 0 && <p className="text-sm text-purple-300/50">Nenhum NPC de ficha completa ainda.</p>}
+              <button
+                onClick={() => setCreatingChar(true)}
+                className={`rounded-lg border border-dashed px-3 py-2 text-sm ${
+                  creatingChar
+                    ? 'border-purple-500 bg-purple-900/30 text-purple-100'
+                    : 'border-purple-800/50 text-purple-300/70 hover:border-purple-500'
+                }`}
+              >
+                + Criar NPC (ficha completa)
+              </button>
+            </div>
+
+            {creatingChar && (
+              <div className="rounded-xl border border-purple-800/40">
+                <p className="px-4 pt-3 text-xs uppercase tracking-wide text-purple-400/60">
+                  Criando um NPC de ficha completa controlado pelo Mestre (aliado, vilão ou substituto).
+                </p>
+                <CharacterCreate
+                  table={table}
+                  uid={table.gmUid}
+                  nickname="Mestre"
+                  onCreated={(c) => {
+                    setSelectedId(c.id)
+                    setCreatingChar(false)
+                  }}
+                />
+              </div>
+            )}
+
+            {!creatingChar && selected && gmCharacters.some((c) => c.id === selected.id) && (
+              <div className="rounded-xl border border-purple-800/40">
+                <div className="flex items-center justify-between gap-2 px-4 pt-3">
+                  <p className="text-xs uppercase tracking-wide text-purple-400/60">
+                    Controlando a ficha de {selected.name} como Mestre.
+                  </p>
+                  <button
+                    className="text-xs text-red-400 hover:text-red-200"
+                    onClick={() => {
+                      if (confirm(`Remover ${selected.name} da mesa? Isso apaga o NPC.`)) {
+                        deleteCharacter(table.id, selected.id)
+                        setSelectedId(null)
+                      }
+                    }}
+                  >
+                    remover NPC
+                  </button>
+                </div>
+                <PlayerView table={table} characterId={selected.id} uid={table.gmUid} asGM />
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-purple-900/30 pt-4">
+            <NpcManager table={table} npcs={npcs} characters={characters} />
+          </div>
+        </div>
+      )}
       {tab === 'combate' && <CombatTracker table={table} characters={characters} npcs={npcs} />}
       {tab === 'tabelas' && <ReferenceBrowser table={table} actorName={table.gmNickname} />}
       {tab === 'config' && <TableSettings table={table} />}

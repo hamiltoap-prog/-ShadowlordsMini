@@ -14,6 +14,7 @@ import {
   listenSceneLibrary,
   listenTable,
   saveScene,
+  updateSceneLibraryItem,
 } from '../lib/store'
 import { SCENE_TOKEN_LABELS } from '../types'
 import type { Character, GameTable, NPC, Scene, SceneLibraryItem, SceneToken, SceneTokenKind } from '../types'
@@ -23,6 +24,13 @@ const KIND_STYLE: Record<SceneTokenKind, string> = {
   npc: 'ring-sky-400 bg-sky-900/60',
   monster: 'ring-orange-400 bg-orange-900/60',
   boss: 'ring-red-500 bg-red-900/70',
+}
+
+const KIND_DOT: Record<SceneTokenKind, string> = {
+  pc: 'bg-emerald-400',
+  npc: 'bg-sky-400',
+  monster: 'bg-orange-400',
+  boss: 'bg-red-500',
 }
 
 const EMPTY_SCENE: Scene = { backgroundUrl: '', tokens: [], revealed: false, updatedAt: 0 }
@@ -320,15 +328,27 @@ export function ScenePage() {
 
       {isGM && stagedTokens.length > 0 && (
         <Card className="flex flex-col gap-2 p-3">
-          <SectionTitle>🎭 Bandeja de Monstros Preparados</SectionTitle>
+          <SectionTitle>🎭 Bandeja de Criaturas Preparadas</SectionTitle>
           <p className="text-xs text-purple-300/50">
-            Ficam escondidos dos jogadores até você colocar no mapa — ótimo para uma emboscada surpresa.
+            Ficam escondidas dos jogadores até você colocar no mapa — ótimo para uma emboscada surpresa. Ajuste o
+            tipo de cada uma antes de colocar.
           </p>
           <div className="flex flex-wrap gap-2">
             {stagedTokens.map((t) => (
               <div key={t.id} className="flex items-center gap-2 rounded-lg border border-purple-900/40 bg-black/20 p-2">
                 <SceneTokenThumb token={t} />
                 <span className="text-sm text-purple-100">{t.label}</span>
+                <select
+                  value={t.kind}
+                  onChange={(e) => updateToken(t.id, { kind: e.target.value as SceneTokenKind })}
+                  className="rounded border border-purple-900/50 bg-[var(--surface-well)] px-1 py-0.5 text-xs text-purple-50"
+                >
+                  {(Object.keys(SCENE_TOKEN_LABELS) as SceneTokenKind[]).map((k) => (
+                    <option key={k} value={k}>
+                      {SCENE_TOKEN_LABELS[k]}
+                    </option>
+                  ))}
+                </select>
                 <Button
                   variant="primary"
                   onClick={() => updateToken(t.id, { onBoard: true, x: 0.5, y: 0.5 })}
@@ -348,6 +368,7 @@ export function ScenePage() {
       {isGM && (
         <SceneControls
           tableId={tableId}
+          gmUid={table.gmUid}
           scene={scene}
           characters={characters}
           npcs={npcs}
@@ -415,7 +436,17 @@ function SceneTokenView({
       }}
       title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
     >
-      {isBoss && <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-lg drop-shadow">👑</span>}
+      {isBoss && (
+        <svg
+          viewBox="0 0 24 24"
+          width="15"
+          height="15"
+          fill="currentColor"
+          className="absolute -top-4 left-1/2 -translate-x-1/2 text-red-500 drop-shadow"
+        >
+          <path d="M12 2.5l2.35 5.68 6.15.5-4.68 4.02 1.45 5.97L12 15.4l-5.27 3.27 1.45-5.97-4.68-4.02 6.15-.5L12 2.5z" />
+        </svg>
+      )}
       {t.imageUrl ? (
         <img src={t.imageUrl} alt={t.label} className="h-full w-full rounded-full object-cover" draggable={false} />
       ) : (
@@ -446,6 +477,7 @@ function SceneTokenView({
 
 function SceneControls({
   tableId,
+  gmUid,
   scene,
   characters,
   npcs,
@@ -457,6 +489,7 @@ function SceneControls({
   onClear,
 }: {
   tableId: string
+  gmUid: string
   scene: Scene
   characters: Character[]
   npcs: NPC[]
@@ -550,15 +583,32 @@ function SceneControls({
 
         <div className="flex flex-wrap gap-1.5 border-t border-purple-900/30 pt-2">
           <span className="text-xs uppercase text-purple-400/60">Adicionar rápido:</span>
-          {characters.map((c) => (
-            <button
-              key={c.id}
-              onClick={() => onAddToken({ label: c.name, imageUrl: c.portraitUrl, kind: 'pc', refType: 'character', refId: c.id })}
-              className="rounded-full border border-emerald-800/50 px-2 py-0.5 text-xs text-emerald-200 hover:border-emerald-500"
-            >
-              + {c.name}
-            </button>
-          ))}
+          {characters.map((c) => {
+            const kind: SceneTokenKind = c.ownerUid === gmUid ? 'npc' : 'pc'
+            return (
+              <span key={c.id} className="flex items-center gap-0.5">
+                <button
+                  onClick={() => onAddToken({ label: c.name, imageUrl: c.portraitUrl, kind, refType: 'character', refId: c.id })}
+                  className={`rounded-full border px-2 py-0.5 text-xs ${
+                    kind === 'npc'
+                      ? 'border-sky-800/50 text-sky-200 hover:border-sky-500'
+                      : 'border-emerald-800/50 text-emerald-200 hover:border-emerald-500'
+                  }`}
+                >
+                  + {c.name}
+                </button>
+                <button
+                  title="Preparar na bandeja em vez de colocar direto no mapa"
+                  onClick={() =>
+                    onAddToken({ label: c.name, imageUrl: c.portraitUrl, kind, refType: 'character', refId: c.id }, { onBoard: false })
+                  }
+                  className="rounded-full border border-purple-800/30 px-1.5 py-0.5 text-xs text-purple-300/70 hover:border-purple-500"
+                >
+                  🎭
+                </button>
+              </span>
+            )
+          })}
           {npcs.map((n) => (
             <span key={n.id} className="flex items-center gap-0.5">
               <button
@@ -671,28 +721,43 @@ function SceneControls({
           <div>
             <p className="mb-1 text-xs uppercase text-purple-400/60">Monstros/ícones salvos</p>
             <div className="flex flex-col gap-1">
-              {tokenPresets.map((t) => (
-                <div key={t.id} className="flex items-center justify-between gap-2 rounded border border-purple-900/30 bg-black/20 px-2 py-1 text-xs">
-                  <button
-                    className="truncate text-left text-purple-100 hover:text-purple-300"
-                    onClick={() => onAddToken({ label: t.label, imageUrl: t.imageUrl, kind: t.tokenKind ?? 'monster' })}
-                  >
-                    {t.tokenKind === 'boss' ? '👑' : t.tokenKind === 'npc' ? '🙂' : '👹'} {t.label}
-                  </button>
-                  <span className="flex items-center gap-1">
+              {tokenPresets.map((t) => {
+                const kind = t.tokenKind ?? 'monster'
+                return (
+                  <div key={t.id} className="flex items-center justify-between gap-2 rounded border border-purple-900/30 bg-black/20 px-2 py-1 text-xs">
                     <button
-                      title="Preparar na bandeja"
-                      className="text-purple-400 hover:text-purple-200"
-                      onClick={() => onAddToken({ label: t.label, imageUrl: t.imageUrl, kind: t.tokenKind ?? 'monster' }, { onBoard: false })}
+                      className="flex min-w-0 items-center gap-1.5 truncate text-left text-purple-100 hover:text-purple-300"
+                      onClick={() => onAddToken({ label: t.label, imageUrl: t.imageUrl, kind })}
                     >
-                      🎭
+                      <span className={`h-2 w-2 shrink-0 rounded-sm ${KIND_DOT[kind]}`} />
+                      <span className="truncate">{t.label}</span>
                     </button>
-                    <button className="text-red-400 hover:text-red-200" onClick={() => deleteSceneLibraryItem(tableId, t.id)}>
-                      ✕
-                    </button>
-                  </span>
-                </div>
-              ))}
+                    <span className="flex shrink-0 items-center gap-1">
+                      <select
+                        value={kind}
+                        onChange={(e) => updateSceneLibraryItem(tableId, t.id, { tokenKind: e.target.value as SceneTokenKind })}
+                        className="rounded border border-purple-900/50 bg-[var(--surface-well)] px-1 py-0.5 text-[11px] text-purple-50"
+                      >
+                        {(Object.keys(SCENE_TOKEN_LABELS) as SceneTokenKind[]).map((k) => (
+                          <option key={k} value={k}>
+                            {SCENE_TOKEN_LABELS[k]}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        title="Preparar na bandeja"
+                        className="text-purple-400 hover:text-purple-200"
+                        onClick={() => onAddToken({ label: t.label, imageUrl: t.imageUrl, kind }, { onBoard: false })}
+                      >
+                        🎭
+                      </button>
+                      <button className="text-red-400 hover:text-red-200" onClick={() => deleteSceneLibraryItem(tableId, t.id)}>
+                        ✕
+                      </button>
+                    </span>
+                  </div>
+                )
+              })}
               {tokenPresets.length === 0 && <p className="text-xs text-purple-400/40">Nenhum ícone salvo ainda.</p>}
             </div>
             <Button

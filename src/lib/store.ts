@@ -14,7 +14,7 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import type { Character, GameTable, LogEntry, NPC, RollRequest, Scene, SceneLibraryItem } from '../types'
+import type { Character, GameTable, LogEntry, MonsterImageEntry, NPC, RollRequest, Scene, SceneLibraryItem } from '../types'
 import { newId, newTableCode } from './id'
 
 function requireDb() {
@@ -172,7 +172,7 @@ export async function claimCharacter(tableId: string, characterId: string, owner
   await updateDoc(doc(charactersCol(tableId), characterId), { ownerUid, updatedAt: Date.now() })
 }
 
-// ---------- NPCs / Monstros ----------
+// ---------- NPCs / Criaturas personalizadas ----------
 
 export function npcsCol(tableId: string) {
   return collection(requireDb(), 'tables', tableId, 'npcs')
@@ -311,8 +311,38 @@ export async function deleteSceneLibraryItem(tableId: string, itemId: string) {
   await deleteDoc(doc(sceneLibraryCol(tableId), itemId))
 }
 
+export async function updateSceneLibraryItem(tableId: string, itemId: string, patch: Partial<SceneLibraryItem>) {
+  await updateDoc(doc(sceneLibraryCol(tableId), itemId), stripUndefined(patch))
+}
+
 export function listenSceneLibrary(tableId: string, cb: (items: SceneLibraryItem[]) => void) {
   return onSnapshot(query(sceneLibraryCol(tableId), orderBy('createdAt', 'asc')), (snap) => {
     cb(snap.docs.map((d) => d.data() as SceneLibraryItem))
+  })
+}
+
+// ---------- Memória de imagens por nome de criatura ----------
+
+export function monsterImagesCol(tableId: string) {
+  return collection(requireDb(), 'tables', tableId, 'monsterImages')
+}
+
+/** Lembra a imagem usada para este nome de criatura, para preencher
+ * automaticamente da próxima vez que for adicionada (bestiário ou personalizada). */
+export async function setMonsterImage(tableId: string, name: string, url: string) {
+  const nameLower = name.trim().toLowerCase()
+  if (!nameLower) return
+  const entry: MonsterImageEntry = { nameLower, name: name.trim(), url, updatedAt: Date.now() }
+  await setDoc(doc(monsterImagesCol(tableId), nameLower), stripUndefined(entry))
+}
+
+export function listenMonsterImages(tableId: string, cb: (images: Record<string, string>) => void) {
+  return onSnapshot(monsterImagesCol(tableId), (snap) => {
+    const map: Record<string, string> = {}
+    snap.docs.forEach((d) => {
+      const data = d.data() as MonsterImageEntry
+      if (data.url) map[data.nameLower] = data.url
+    })
+    cb(map)
   })
 }

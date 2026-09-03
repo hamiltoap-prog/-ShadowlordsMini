@@ -1,17 +1,22 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BESTIARY, BESTIARY_CATEGORIES } from '../data/bestiary'
 import { roll, roll3d6 } from '../lib/dice'
 import { newId } from '../lib/id'
-import { addLogEntry, createNPC, deleteNPC, updateCharacter, updateNPC } from '../lib/store'
+import { addLogEntry, createNPC, deleteNPC, listenMonsterImages, setMonsterImage, updateCharacter, updateNPC } from '../lib/store'
 import type { Character, GameTable, NPC } from '../types'
+import { PortraitEditor } from './PortraitEditor'
 import { Badge, Button, Card, Input, Select, SectionTitle } from './ui'
 
 export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs: NPC[]; characters: Character[] }) {
   const [category, setCategory] = useState(BESTIARY_CATEGORIES[0])
   const [bestiaryChoice, setBestiaryChoice] = useState(BESTIARY.find((b) => b.category === BESTIARY_CATEGORIES[0])?.name ?? '')
   const [customName, setCustomName] = useState('')
+  const [monsterImages, setMonsterImages] = useState<Record<string, string>>({})
+
+  useEffect(() => listenMonsterImages(table.id, setMonsterImages), [table.id])
 
   const categoryOptions = BESTIARY.filter((b) => b.category === category)
+  const defaultImageUrl = monsterImages[bestiaryChoice.trim().toLowerCase()]
 
   async function addFromBestiary() {
     const entry = BESTIARY.find((b) => b.name === bestiaryChoice)
@@ -23,6 +28,7 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
       hp: { current: entry.hp, max: entry.hp },
       attacks: entry.attacks.map((a) => ({ id: newId(), name: a.name, dano: a.dano, note: a.note })),
       sourceLabel: `${entry.category}${entry.special ? ' — ' + entry.special : ''}`,
+      portraitUrl: monsterImages[entry.name.trim().toLowerCase()],
       visible: false,
       createdAt: Date.now(),
     })
@@ -37,6 +43,7 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
       hp: { current: 10, max: 10 },
       attacks: [{ id: newId(), name: 'Ataque', dano: '1d6' }],
       sourceLabel: 'Personalizado',
+      portraitUrl: monsterImages[customName.trim().toLowerCase()],
       visible: false,
       createdAt: Date.now(),
     })
@@ -45,8 +52,14 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
 
   return (
     <div className="flex flex-col gap-4">
+      <div>
+        <SectionTitle>👹 Outras Criaturas Personalizadas</SectionTitle>
+        <p className="mt-0.5 text-xs text-purple-300/50">
+          Fichas resumidas (PV, Defesa, ataques) do bestiário ou criadas na hora — para NPCs com ficha completa,
+          veja a seção NPCs acima.
+        </p>
+      </div>
       <Card className="flex flex-col gap-3 p-4">
-        <SectionTitle>Adicionar NPC / Monstro</SectionTitle>
         <div className="flex flex-wrap items-center gap-2">
           <Select
             value={category}
@@ -70,13 +83,27 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
               </option>
             ))}
           </Select>
+          <PortraitEditor
+            url={defaultImageUrl}
+            name={bestiaryChoice || '?'}
+            size={32}
+            onSave={(url) => setMonsterImage(table.id, bestiaryChoice, url)}
+          />
           <Button variant="primary" onClick={addFromBestiary}>
             Adicionar do Bestiário
           </Button>
         </div>
-        <div className="flex items-center gap-2">
-          <Input value={customName} onChange={(e) => setCustomName(e.target.value)} placeholder="Nome de NPC personalizado" className="w-56" />
-          <Button onClick={addCustom}>Adicionar Personalizado</Button>
+        <p className="text-[11px] text-purple-400/50">
+          A foto ao lado é a imagem padrão deste monstro — troque uma vez e toda futura adição já vem com ela.
+        </p>
+        <div className="flex items-center gap-2 border-t border-purple-900/30 pt-2">
+          <Input
+            value={customName}
+            onChange={(e) => setCustomName(e.target.value)}
+            placeholder="Nome da criatura personalizada"
+            className="w-56"
+          />
+          <Button onClick={addCustom}>Adicionar Personalizada</Button>
         </div>
       </Card>
 
@@ -84,7 +111,7 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
         {npcs.map((npc) => (
           <NpcCard key={npc.id} table={table} npc={npc} characters={characters} />
         ))}
-        {npcs.length === 0 && <p className="text-sm text-purple-300/50">Nenhum NPC nesta mesa ainda.</p>}
+        {npcs.length === 0 && <p className="text-sm text-purple-300/50">Nenhuma criatura personalizada nesta mesa ainda.</p>}
       </div>
     </div>
   )
@@ -102,6 +129,11 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
   async function applyHp(delta: number) {
     const newCurrent = Math.max(0, Math.min(npc.hp.max, npc.hp.current + delta))
     await updateNPC(table.id, npc.id, { hp: { ...npc.hp, current: newCurrent } })
+  }
+
+  async function savePortrait(url: string) {
+    await updateNPC(table.id, npc.id, { portraitUrl: url || undefined })
+    if (url.trim()) await setMonsterImage(table.id, npc.name, url.trim())
   }
 
   async function rollAttack() {
@@ -145,9 +177,12 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
   return (
     <Card className="flex flex-col gap-2 p-3">
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <p className="font-semibold text-purple-100">{npc.name}</p>
-          {npc.sourceLabel && <p className="text-xs text-purple-300/50">{npc.sourceLabel}</p>}
+        <div className="flex items-center gap-2">
+          <PortraitEditor url={npc.portraitUrl} name={npc.name} size={40} onSave={savePortrait} />
+          <div>
+            <p className="font-semibold text-purple-100">{npc.name}</p>
+            {npc.sourceLabel && <p className="text-xs text-purple-300/50">{npc.sourceLabel}</p>}
+          </div>
         </div>
         <div className="flex gap-1">
           <button

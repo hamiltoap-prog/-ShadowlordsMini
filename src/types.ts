@@ -253,3 +253,12 @@ export interface SceneLibraryItem {
   folder?: string
   createdAt: number
 }
+
+/** Lembra a última imagem usada para um nome de criatura (bestiário ou
+ * personalizada), para preencher automaticamente da próxima vez. */
+export interface MonsterImageEntry {
+  nameLower: string
+  name: string
+  url: string
+  updatedAt: number
+}

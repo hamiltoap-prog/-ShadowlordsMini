@@ -94,6 +94,12 @@ service cloud.firestore {
       match /sceneLibrary/{itemId} {
         allow read, write: if isGM(tableId);
       }
+
+      // Memória de imagens por nome de criatura (bestiário/personalizada): só
+      // o Mestre usa, para lembrar a foto da última vez que editou aquele nome.
+      match /monsterImages/{nameLower} {
+        allow read, write: if isGM(tableId);
+      }
     }
   }
 }

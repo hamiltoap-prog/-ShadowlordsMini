@@ -12,19 +12,24 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   rolagem secreta, que só ele enxerga
 - 🗺️ **Tela de jogo** em aba separada, com zoom e navegação livres para cada um: o Mestre monta
   o mapa e arrasta ícones de personagens, NPCs, monstros e chefes (chefes ganham um ícone maior,
-  com coroa e brilho pulsante); os jogadores acompanham em tempo real, sem poder mexer. Uma
-  **tela de espera** cobre tudo enquanto o Mestre prepara a cena, uma **bandeja de monstros
-  preparados** deixa surpresas escondidas até serem colocadas no mapa, e a **biblioteca da
-  mesa** guarda mapas (organizados em pastas) e monstros favoritos para reusar depois
+  com emblema e brilho); os jogadores acompanham em tempo real, sem poder mexer. Uma
+  **tela de espera** cobre tudo enquanto o Mestre prepara a cena, uma **bandeja de criaturas
+  preparadas** deixa surpresas escondidas até serem colocadas no mapa (com o tipo de cada uma
+  editável ali mesmo), e a **biblioteca da mesa** guarda mapas (organizados em pastas) e
+  criaturas favoritas para reusar depois
 - 🩸 A tela de jogo mostra quando alguém está avariado (< 50% PV) ou crítico (< 10% PV) e quais
   condições afetam cada um — sem nunca expor o número exato de PV aos outros jogadores
 - 🧬 **Ancestralidades** (Anão, Elfo, Goblin, Meio-Orc, Halfling, Humano) com suas
   características próprias aplicadas automaticamente nas rolagens
 - 🩹 **Condições de status** (envenenado, paralisado, etc.) que o Mestre marca em qualquer ficha
 - 🖼️ Foto de perfil do personagem, trocável a qualquer momento com um clique no avatar
-- 🧙 Painel do Mestre: cria NPCs simples do Bestiário **ou personagens completos** (aliados,
-  vilões, substitutos), rastreador de combate, tabelas aleatórias, referência completa das
-  regras, e edição de atributos, PV, defesa e moedas de qualquer ficha
+- 🧙 Painel do Mestre: aba **NPCs** reúne tanto NPCs de ficha completa (aliados, vilões,
+  substitutos — criados pelo Mestre e automaticamente separados dos jogadores) quanto **Outras
+  Criaturas Personalizadas** (fichas resumidas do Bestiário ou criadas na hora), rastreador de
+  combate, tabelas aleatórias, referência completa das regras, e edição de atributos, PV,
+  defesa e moedas de qualquer ficha
+- 🖼️ **Imagens de monstro memorizadas por nome**: edite a foto de uma criatura uma vez e toda
+  futura adição do mesmo nome (bestiário ou personalizada) já vem com aquela imagem
 - ⚔️ Criação de personagem escolhendo cada opção (ou sorteando nos dados), com foto de perfil
 - 🛒 Loja liberada pelo Mestre: compras só acontecem quando o grupo está num lugar de comércio
 - 🔗 Entrada de qualquer aparelho: jogador entra com o código da mesa + nome do personagem;
