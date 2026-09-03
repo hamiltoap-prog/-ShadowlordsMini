@@ -18,7 +18,13 @@ import {
   updateSceneLibraryItem,
 } from '../lib/store'
 import { SCENE_TOKEN_LABELS } from '../types'
-import type { Character, GameTable, NPC, Scene, SceneLibraryItem, SceneToken, SceneTokenKind } from '../types'
+import type { Character, GameTable, NPC, Scene, SceneLibraryItem, SceneToken, SceneTokenKind, TimeOfDay } from '../types'
+
+const STAR_POSITIONS = [
+  [8, 12], [17, 6], [23, 22], [34, 9], [41, 18], [52, 5], [61, 14], [69, 24],
+  [77, 8], [85, 19], [91, 11], [14, 32], [29, 30], [47, 28], [64, 33], [80, 30],
+  [6, 40], [37, 40], [58, 42], [95, 38],
+] as const
 
 const KIND_STYLE: Record<SceneTokenKind, string> = {
   pc: 'ring-emerald-400 bg-emerald-900/60',
@@ -59,12 +65,23 @@ export function ScenePage() {
   const [dragId, setDragId] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [announcement, setAnnouncement] = useState<string | null>(null)
+  const [now, setNow] = useState(() => Date.now())
   const boardRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
   const localEdit = useRef(false)
   const panDrag = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null)
 
   const scene = sceneState ?? EMPTY_SCENE
+  const timeOfDay: TimeOfDay = scene.timeOfDay ?? 'day'
+  const locationLit = scene.locationLit ?? true
+
+  // Relógio simples para saber se uma fonte de luz de personagem ainda está
+  // ativa (lightUntil) — não precisa de precisão de segundo, só reagir a tempo.
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 5000)
+    return () => clearInterval(id)
+  }, [])
 
   useEffect(() => {
     if (!firebaseConfigured) return
@@ -104,6 +121,17 @@ export function ScenePage() {
     },
     [tableId],
   )
+
+  function toggleTimeOfDay() {
+    const next: TimeOfDay = timeOfDay === 'day' ? 'night' : 'day'
+    persist({ ...scene, timeOfDay: next, locationLit: next === 'day' })
+    setAnnouncement(next === 'night' ? 'A noite cai sobre as Terras Sombrias...' : 'O dia amanhece, cinzento e avermelhado...')
+    setTimeout(() => setAnnouncement(null), 3200)
+  }
+
+  function toggleLocationLit() {
+    persist({ ...scene, locationLit: !locationLit })
+  }
 
   function addToken(token: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>, opts?: { at?: { x: number; y: number }; onBoard?: boolean }) {
     const newToken: SceneToken = {
@@ -229,6 +257,25 @@ export function ScenePage() {
   const visibleTokens = scene.tokens.filter((t) => isGM || t.onBoard !== false)
   const stagedTokens = scene.tokens.filter((t) => t.onBoard === false)
 
+  // Sem luz no local: escurece o mapa inteiro, com "furos" de luz ao redor de
+  // cada personagem com uma fonte de iluminação ativa (lightUntil no futuro).
+  const litTokens = locationLit
+    ? []
+    : visibleTokens.filter((t) => {
+        if (t.refType !== 'character') return false
+        const c = characters.find((x) => x.id === t.refId)
+        return Boolean(c?.lightUntil && c.lightUntil > now)
+      })
+  const darknessBackground = locationLit
+    ? undefined
+    : [
+        ...litTokens.map(
+          (t) =>
+            `radial-gradient(circle at ${t.x * 100}% ${t.y * 100}%, transparent 0%, transparent 11%, rgba(40,26,10,0.45) 18%, rgba(3,3,8,0.93) 28%)`,
+        ),
+        'linear-gradient(rgba(3,3,8,0.93), rgba(3,3,8,0.93))',
+      ].join(', ')
+
   return (
     <div className="flex min-h-screen flex-col gap-3 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -253,6 +300,23 @@ export function ScenePage() {
         )}
       </div>
 
+      {!showWaitingScreen && (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge>{timeOfDay === 'day' ? '🌇 Dia' : '🌑 Noite'}</Badge>
+          <Badge tone={locationLit ? 'good' : 'bad'}>{locationLit ? '💡 Local iluminado' : '🌑 Sem luz — precisa de iluminação'}</Badge>
+          {isGM && (
+            <>
+              <Button onClick={toggleTimeOfDay} className="text-xs">
+                {timeOfDay === 'day' ? '🌙 Anoitecer' : '🌇 Amanhecer'}
+              </Button>
+              <Button onClick={toggleLocationLit} className="text-xs">
+                {locationLit ? 'Escurecer local (ambiente fechado)' : 'Iluminar local'}
+              </Button>
+            </>
+          )}
+        </div>
+      )}
+
       {showWaitingScreen ? (
         <div className="flex min-h-[60vh] flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-purple-900/50 bg-[var(--surface-board)] text-center">
           <span className="text-4xl">🕯️</span>
@@ -267,6 +331,31 @@ export function ScenePage() {
           onDragOver={(e) => isGM && e.preventDefault()}
           className="relative min-h-[60vh] flex-1 cursor-grab overflow-hidden rounded-xl border border-purple-900/50 bg-[var(--surface-board)] active:cursor-grabbing"
         >
+          {/* Tom ambiente de dia/noite — não acompanha o zoom/pan, é a "luz do céu". */}
+          <div
+            className="pointer-events-none absolute inset-0 z-[4] transition-colors duration-[2500ms] ease-in-out"
+            style={{ backgroundColor: timeOfDay === 'night' ? 'rgba(2, 2, 8, 0.78)' : 'rgba(120, 55, 45, 0.16)' }}
+          />
+          <div
+            className="pointer-events-none absolute inset-0 z-[4] transition-opacity duration-[2500ms] ease-in-out"
+            style={{ opacity: timeOfDay === 'night' ? 1 : 0 }}
+          >
+            {STAR_POSITIONS.map(([x, y], i) => (
+              <span
+                key={i}
+                className="absolute h-[2px] w-[2px] rounded-full bg-purple-100 animate-star-twinkle"
+                style={{ left: `${x}%`, top: `${y}%`, animationDelay: `${(i % 7) * 0.6}s` }}
+              />
+            ))}
+          </div>
+          {announcement && (
+            <div className="pointer-events-none absolute inset-x-0 top-6 z-[6] flex justify-center">
+              <p className="animate-fade-in-out rounded-full border border-purple-700/50 bg-black/70 px-4 py-1.5 text-sm text-purple-100">
+                {announcement}
+              </p>
+            </div>
+          )}
+
           <div className="pointer-events-none absolute right-2 top-2 z-10 flex gap-1">
             <button
               className="pointer-events-auto rounded bg-black/60 px-2 py-1 text-sm text-purple-100 hover:bg-black/80"
@@ -324,6 +413,13 @@ export function ScenePage() {
                 }}
               />
             ))}
+
+            {darknessBackground && (
+              <div
+                className="pointer-events-none absolute inset-0 z-[3] transition-opacity duration-1000"
+                style={{ backgroundImage: darknessBackground }}
+              />
+            )}
           </div>
         </div>
       )}

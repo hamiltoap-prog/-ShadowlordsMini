@@ -100,6 +100,9 @@ export interface Character {
   createdAt: number
   updatedAt: number
   isAlive: boolean
+  /** Fonte de luz ativa até este horário (epoch ms) — ilumina a área ao redor
+   * do token deste personagem na tela de jogo enquanto durar. */
+  lightUntil?: number
 }
 
 export interface NPCAttack {
@@ -207,6 +210,9 @@ export interface RollRequest {
   weaponLabel?: string
   weaponDano?: string
   damageAttrMod?: number
+  /** Texto do efeito do feitiço (ex: "3d6 Dano e vítima rola Teste para 1/2
+   * Dano"), narrado no resultado quando a conjuração é bem-sucedida. */
+  spellEffect?: string
 }
 
 export type SceneTokenKind = 'pc' | 'npc' | 'monster' | 'boss'
@@ -234,12 +240,20 @@ export interface SceneToken {
   onBoard?: boolean
 }
 
+export type TimeOfDay = 'day' | 'night'
+
 export interface Scene {
   backgroundUrl: string
   tokens: SceneToken[]
   /** Quando falso, os jogadores veem uma tela de espera enquanto o Mestre prepara a cena. */
   revealed: boolean
   updatedAt: number
+  /** Dia ou noite — controla o tom ambiente e se o local escurece. */
+  timeOfDay?: TimeOfDay
+  /** O Mestre decide manualmente se o local atual está iluminado (tochas,
+   * velas, luz do dia entrando) — independe do dia/noite: útil tanto para um
+   * cômodo escuro durante o dia quanto para um salão iluminado à noite. */
+  locationLit?: boolean
 }
 
 /** Item salvo na biblioteca da mesa: um mapa ou um preset de token (monstro/NPC/chefe). */

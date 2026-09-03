@@ -65,6 +65,9 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                 skillBonus,
                 skillName,
                 target: targetDefense,
+                weaponLabel: weapon?.name ?? 'Desarmado',
+                weaponDano: weapon?.dano ?? '1d3',
+                damageAttrMod: (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus,
               }
             : kind === 'spell'
               ? {
@@ -77,6 +80,7 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                   target: 13,
                   spellName: spell.name,
                   spellCost: spell.custo,
+                  spellEffect: spell.efeito,
                 }
               : {
                   kind,
@@ -159,25 +163,46 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
         )}
 
         {tab === 'ataque' && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={weaponIdx} onChange={(e) => setWeaponIdx(Number(e.target.value))} className="w-auto">
-              {equipped.length === 0 && <option value={0}>Desarmado</option>}
-              {equipped.map((w, i) => (
-                <option key={w.id} value={i}>
-                  {w.name} ({w.dano})
-                </option>
-              ))}
-            </Select>
-            <span className="text-sm text-purple-300/70">Defesa do alvo:</span>
-            <Input
-              type="number"
-              value={targetDefense}
-              onChange={(e) => setTargetDefense(Number(e.target.value))}
-              className="w-16"
-            />
-            <Button variant="primary" disabled={busy} onClick={() => send('attack')}>
-              Pedir ataque
-            </Button>
+          <div className="flex flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={weaponIdx} onChange={(e) => setWeaponIdx(Number(e.target.value))} className="w-auto">
+                {equipped.length === 0 && <option value={0}>Desarmado</option>}
+                {equipped.map((w, i) => (
+                  <option key={w.id} value={i}>
+                    {w.name} ({w.dano})
+                  </option>
+                ))}
+              </Select>
+              <span className="text-sm text-purple-300/70">Defesa do alvo:</span>
+              <Input
+                type="number"
+                value={targetDefense}
+                onChange={(e) => setTargetDefense(Number(e.target.value))}
+                className="w-16"
+              />
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-sm text-purple-300/70">Modificador de dano:</span>
+              <Select
+                value={damageAttr}
+                onChange={(e) => setDamageAttr(e.target.value as AttributeKey | '')}
+                className="w-auto"
+              >
+                <option value="">Sem Modificador</option>
+                {ATTRIBUTE_KEYS.map((k) => (
+                  <option key={k} value={k}>
+                    {ATTRIBUTE_LABELS[k]} ({character.attributes[k].mod >= 0 ? '+' : ''}
+                    {character.attributes[k].mod})
+                  </option>
+                ))}
+              </Select>
+              <Button variant="primary" disabled={busy} onClick={() => send('attack')}>
+                Pedir ataque
+              </Button>
+            </div>
+            <p className="text-xs text-purple-300/50">
+              Se acertar, o dano já é rolado e narrado junto com o resultado.
+            </p>
           </div>
         )}
 

@@ -19,6 +19,17 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   criaturas favoritas para reusar depois
 - 🩸 A tela de jogo mostra quando alguém está avariado (< 50% PV) ou crítico (< 10% PV) e quais
   condições afetam cada um — sem nunca expor o número exato de PV aos outros jogadores
+- 🌇🌑 **Dia e noite na tela de jogo**: o Mestre alterna entre dia (tom acinzentado avermelhado)
+  e noite (breu, com estrelas raras — sem lua, como pede o cenário), com uma animação de
+  transição a cada troca. O Mestre também decide se o local atual está iluminado (uma sala com
+  tochas à noite, ou um porão escuro em pleno dia); sem luz, o mapa escurece e só os personagens
+  com uma fonte de luz acesa enxergam ao redor de si
+- 🔥 **Itens de iluminação com contador real**: o jogador acende uma fonte de luz (padrão 1
+  hora, ajustável) que ilumina seu personagem na tela de jogo até o tempo acabar — o Mestre
+  pode apagar a qualquer momento
+- 💥 **Dano e efeito narrados junto com o resultado**: ataques e feitiços bem-sucedidos já
+  mostram quanto de dano causaram (e o efeito, tipo veneno ou paralisia) na mesma mensagem —
+  sem precisar de um segundo passo
 - 🧬 **Ancestralidades** (Anão, Elfo, Goblin, Meio-Orc, Halfling, Humano) com suas
   características próprias aplicadas automaticamente nas rolagens
 - 🩹 **Condições de status** (envenenado, paralisado, etc.) que o Mestre marca em qualquer ficha
@@ -33,7 +44,8 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
 - 🔗 **Links do Google Drive funcionam direto**: cole o link de compartilhamento comum
   (`.../file/d/ID/view`) em qualquer campo de foto ou imagem — ele é convertido automaticamente
   para o formato que carrega de verdade
-- ⚔️ Criação de personagem escolhendo cada opção (ou sorteando nos dados), com foto de perfil
+- ⚔️ Criação de personagem escolhendo cada opção (ou sorteando nos dados), com foto de perfil.
+  Cada Origem tem um ícone "ⓘ" com mais informações sobre aquele lugar do cenário do manual
 - 🛒 Loja liberada pelo Mestre: compras só acontecem quando o grupo está num lugar de comércio
 - 🔗 Entrada de qualquer aparelho: jogador entra com o código da mesa + nome do personagem;
   o Mestre entra com e-mail e senha (com recuperação por e-mail)

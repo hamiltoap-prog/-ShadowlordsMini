@@ -29,6 +29,7 @@ import { d66ToIndex36, roll1d66, roll1d6 } from '../lib/dice'
 import { addLogEntry } from '../lib/store'
 import type { GameTable } from '../types'
 import { Badge, Button, Card, SectionTitle } from './ui'
+import { InfoButton } from './InfoButton'
 
 function rollTableResult(t: RollTable): { text: string; rolled: string; dice: number[] } {
   if (t.dice === '1d66') {
@@ -199,8 +200,9 @@ export function ReferenceBrowser({ table, actorName }: { table: GameTable; actor
       <Collapsible title="Origens">
         <div className="grid gap-1 sm:grid-cols-2">
           {ORIGINS.map((o) => (
-            <p key={o.name} className="text-sm text-purple-200">
-              <b className="text-purple-100">{o.name}</b> — {o.habilidades.join(', ')}
+            <p key={o.name} className="flex items-center gap-1.5 text-sm text-purple-200">
+              <b className="text-purple-100">{o.name}</b>
+              <InfoButton title={o.name} text={o.lore} />— {o.habilidades.join(', ')}
             </p>
           ))}
         </div>

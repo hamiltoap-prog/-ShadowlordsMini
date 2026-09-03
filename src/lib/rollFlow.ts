@@ -1,4 +1,4 @@
-import { formatCheck, formatDamage, formatSpell } from './format'
+import { formatCheck, formatDamage, formatDamageAndEffect, formatSpell } from './format'
 import { attackRoll, attributeTest, castSpell, damageRoll } from './mechanics'
 import { addLogEntry, addSecretRoll, createRollRequest, updateCharacter, updateRollRequest } from './store'
 import type { Character, GameTable, LogKind, RollRequest, RollRequestKind } from '../types'
@@ -16,6 +16,7 @@ export interface RollIntent {
   weaponLabel?: string
   weaponDano?: string
   damageAttrMod?: number
+  spellEffect?: string
 }
 
 /**
@@ -49,6 +50,7 @@ export async function requestRoll(
     weaponLabel: intent.weaponLabel,
     weaponDano: intent.weaponDano,
     damageAttrMod: intent.damageAttrMod,
+    spellEffect: intent.spellEffect,
   })
   return { pendingId }
 }
@@ -87,7 +89,18 @@ export async function executeRoll(
       targetDefense: intent.target ?? 10,
       label: intent.description || 'Ataque',
     })
-    outcome = { summary: formatCheck(check), dice: check.roll.rolls, total: check.total, success: check.success, kind: 'attack' }
+    let summary = formatCheck(check)
+    // Ataque bem-sucedido com uma arma conhecida: já rola o dano na hora e
+    // narra o resultado na mesma mensagem, sem precisar de um segundo passo.
+    if (check.success && intent.weaponDano) {
+      const dmg = damageRoll({
+        weaponDano: intent.weaponDano,
+        attrMod: intent.damageAttrMod ?? 0,
+        weaponLabel: intent.weaponLabel,
+      })
+      summary += ` — ${formatDamageAndEffect(dmg)}`
+    }
+    outcome = { summary, dice: check.roll.rolls, total: check.total, success: check.success, kind: 'attack' }
   } else if (intent.kind === 'spell') {
     const result = castSpell({
       attrMod,
@@ -96,7 +109,7 @@ export async function executeRoll(
       label: `Feitiço: ${intent.spellName ?? ''}`,
     })
     outcome = {
-      summary: formatSpell(intent.spellName ?? 'Feitiço', result),
+      summary: formatSpell(intent.spellName ?? 'Feitiço', result, intent.spellEffect),
       dice: result.check.roll.rolls,
       total: result.check.total,
       success: result.check.success,
@@ -153,6 +166,7 @@ export async function approveRollRequest(table: GameTable, request: RollRequest,
       weaponLabel: request.weaponLabel,
       weaponDano: request.weaponDano,
       damageAttrMod: request.damageAttrMod,
+      spellEffect: request.spellEffect,
     },
     { actorType: 'player' },
   )

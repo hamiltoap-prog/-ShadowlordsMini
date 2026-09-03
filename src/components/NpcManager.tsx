@@ -141,11 +141,22 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
     const r = roll3d6()
     const total = r.total + bonus
     const success = total >= target.defense
+    let summary = `${npc.name} ataca ${target.name} com ${attack.name}: 3d6 [${r.rolls.join(', ')}] ${bonus ? (bonus >= 0 ? '+' : '') + bonus : ''} = ${total} vs Defesa ${target.defense} → ${success ? 'Sucesso' : 'Fracasso'}`
+
+    // Acerto: já rola o dano e aplica no alvo, narrando tudo numa só mensagem.
+    if (success) {
+      const d = roll(attack.dano)
+      const dmgTotal = Math.max(1, d.total)
+      summary += ` — causou ${dmgTotal} de dano${attack.note ? ` — ${attack.note}` : ''}`
+      const newCurrent = Math.max(0, target.hp.current - dmgTotal)
+      await updateCharacter(table.id, target.id, { hp: { ...target.hp, current: newCurrent }, isAlive: newCurrent > 0 })
+    }
+
     await addLogEntry(table.id, {
       actorName: npc.name,
       actorType: 'gm',
       kind: 'attack',
-      summary: `${npc.name} ataca ${target.name} com ${attack.name}: 3d6 [${r.rolls.join(', ')}] ${bonus ? (bonus >= 0 ? '+' : '') + bonus : ''} = ${total} vs Defesa ${target.defense} → ${success ? 'Sucesso' : 'Fracasso'}`,
+      summary,
       rolls: r.rolls,
       total,
       success,
@@ -238,9 +249,9 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
           </Select>
           <span className="text-xs text-purple-300/60">bônus</span>
           <Input type="number" value={bonus} onChange={(e) => setBonus(Number(e.target.value))} className="w-14" />
-          <Button onClick={rollAttack}>🎲 Atacar</Button>
-          <Button variant="danger" onClick={rollDamageOnTarget}>
-            💥 Dano no Alvo
+          <Button onClick={rollAttack}>🎲 Atacar (dano automático se acertar)</Button>
+          <Button variant="danger" title="Rola dano extra, sem precisar de um novo ataque" onClick={rollDamageOnTarget}>
+            💥 Dano Extra
           </Button>
         </div>
       )}

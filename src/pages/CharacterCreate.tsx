@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
+import { InfoButton } from '../components/InfoButton'
 import { Portrait } from '../components/Portrait'
 import {
   baseDefenseFromAgi,
@@ -363,18 +364,24 @@ export function CharacterCreate({
         </div>
         <div className="grid max-h-72 gap-1.5 overflow-y-auto sm:grid-cols-2">
           {ORIGINS.map((o, i) => (
-            <button
+            <div
               key={o.name}
+              role="button"
+              tabIndex={0}
               onClick={() => pickOrigin(i)}
-              className={`rounded-lg border p-2 text-left text-sm transition ${
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && pickOrigin(i)}
+              className={`cursor-pointer rounded-lg border p-2 text-left text-sm transition ${
                 originIdx === i
                   ? 'border-purple-500 bg-purple-900/30'
                   : 'border-purple-900/30 bg-black/20 hover:border-purple-700'
               }`}
             >
-              <p className="text-purple-100">{o.name}</p>
+              <p className="flex items-center gap-1.5 text-purple-100">
+                {o.name}
+                <InfoButton title={o.name} text={o.lore} />
+              </p>
               <p className="text-xs text-purple-300/60">{o.habilidades.join(', ')}</p>
-            </button>
+            </div>
           ))}
         </div>
         {origin && (

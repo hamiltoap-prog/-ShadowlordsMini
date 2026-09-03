@@ -320,6 +320,9 @@ export function PlayerView({
           <ActionPanel table={table} character={character} uid={uid} />
         </Card>
 
+        {/* Iluminação */}
+        <LightSourceCard table={table} character={character} />
+
         {/* Inventário */}
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
@@ -441,6 +444,65 @@ export function PlayerView({
         <LogFeed tableId={table.id} />
       </div>
     </div>
+  )
+}
+
+/** Fonte de luz do personagem: contador em tempo real (padrão 1h), ilumina o
+ * token na tela de jogo enquanto durar. O Mestre também pode apagar. */
+function LightSourceCard({ table, character }: { table: GameTable; character: Character }) {
+  const [minutes, setMinutes] = useState(60)
+  const [now, setNow] = useState(Date.now())
+  const active = Boolean(character.lightUntil && character.lightUntil > now)
+
+  useEffect(() => {
+    if (!active) return
+    const id = setInterval(() => setNow(Date.now()), 1000)
+    return () => clearInterval(id)
+  }, [active])
+
+  async function light() {
+    await updateCharacter(table.id, character.id, { lightUntil: Date.now() + Math.max(1, minutes) * 60000 })
+  }
+
+  async function extinguish() {
+    // 0 (não undefined) para de fato zerar o campo — updateCharacter descarta
+    // chaves undefined antes de escrever no Firestore.
+    await updateCharacter(table.id, character.id, { lightUntil: 0 })
+  }
+
+  const remainingMs = Math.max(0, (character.lightUntil ?? 0) - now)
+  const remainingMin = Math.floor(remainingMs / 60000)
+  const remainingSec = Math.floor((remainingMs % 60000) / 1000)
+
+  return (
+    <Card className="flex flex-col gap-2 p-4">
+      <SectionTitle>🔥 Iluminação</SectionTitle>
+      {active ? (
+        <div className="flex flex-wrap items-center gap-2">
+          <Badge tone="good">
+            Acesa — {remainingMin}:{String(remainingSec).padStart(2, '0')} restantes
+          </Badge>
+          <Button variant="danger" onClick={extinguish}>
+            Apagar
+          </Button>
+        </div>
+      ) : (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-sm text-purple-300/70">Duração (minutos):</span>
+          <Input
+            type="number"
+            min={1}
+            value={minutes}
+            onChange={(e) => setMinutes(Math.max(1, Number(e.target.value)))}
+            className="w-20"
+          />
+          <Button variant="primary" onClick={light}>
+            🔥 Acender
+          </Button>
+          <span className="text-xs text-purple-300/50">padrão: 60 min — ilumina ao redor do personagem na tela de jogo</span>
+        </div>
+      )}
+    </Card>
   )
 }
 
