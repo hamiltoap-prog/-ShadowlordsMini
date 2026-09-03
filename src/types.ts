@@ -227,6 +227,11 @@ export interface SceneToken {
   x: number
   y: number
   size: number // diâmetro relativo à largura do tabuleiro (ex: 0.07)
+  /** Quando ligado a uma ficha (personagem ou NPC), mostra o status ao vivo. */
+  refType?: 'character' | 'npc'
+  refId?: string
+  /** Falso = "preparado" na bandeja do Mestre, ainda fora do mapa visível. */
+  onBoard?: boolean
 }
 
 export interface Scene {
@@ -244,5 +249,7 @@ export interface SceneLibraryItem {
   label: string
   imageUrl?: string
   tokenKind?: SceneTokenKind // presente quando kind === 'token'
+  /** Pasta/categoria para organizar mapas na biblioteca (ex: "Masmorras", "Cidades"). */
+  folder?: string
   createdAt: number
 }

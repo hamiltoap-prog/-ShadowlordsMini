@@ -5,7 +5,7 @@ import { ConditionsBadges } from '../components/ConditionsBadges'
 import { ConditionsEditor } from '../components/ConditionsEditor'
 import { DiceOverlay } from '../components/DiceOverlay'
 import { LogFeed } from '../components/LogFeed'
-import { Portrait } from '../components/Portrait'
+import { PortraitEditor } from '../components/PortraitEditor'
 import { XpPanel } from '../components/XpPanel'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
 import { ARMORS, GEAR, WEAPONS } from '../data/equipment'
@@ -35,7 +35,6 @@ export function PlayerView({
   const [character, setCharacter] = useState<Character | null | undefined>(undefined)
   const [noteDraft, setNoteDraft] = useState('')
   const [hpDelta, setHpDelta] = useState(1)
-  const [portraitDraft, setPortraitDraft] = useState('')
 
   useEffect(() => {
     setCharacter(undefined)
@@ -43,7 +42,6 @@ export function PlayerView({
       setCharacter(c)
       if (c) {
         setNoteDraft((prev) => (document.activeElement?.id === 'notes-field' ? prev : c.notes))
-        setPortraitDraft((prev) => (document.activeElement?.id === 'portrait-field' ? prev : (c.portraitUrl ?? '')))
       }
     })
   }, [table.id, characterId])
@@ -146,7 +144,12 @@ export function PlayerView({
         <Card className="p-4">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div className="flex items-center gap-3">
-              <Portrait url={character.portraitUrl} name={character.name} size={64} />
+              <PortraitEditor
+                url={character.portraitUrl}
+                name={character.name}
+                size={64}
+                onSave={(url) => updateCharacter(table.id, character.id, { portraitUrl: url || undefined })}
+              />
               <div>
                 <h1 className="font-serif text-2xl text-purple-100">{character.name}</h1>
                 <p className="text-sm text-purple-300/60">
@@ -419,26 +422,16 @@ export function PlayerView({
           />
         </Card>
 
-        {/* Retrato + anotações */}
+        {/* Anotações */}
         <Card className="flex flex-col gap-3 p-4">
-          <SectionTitle>Retrato e Anotações</SectionTitle>
-          <div className="flex items-center gap-2">
-            <Portrait url={portraitDraft} name={character.name} size={40} />
-            <Input
-              id="portrait-field"
-              value={portraitDraft}
-              onChange={(e) => setPortraitDraft(e.target.value)}
-              onBlur={() => updateCharacter(table.id, character.id, { portraitUrl: portraitDraft.trim() || undefined })}
-              placeholder="URL da foto de perfil"
-            />
-          </div>
+          <SectionTitle>Anotações</SectionTitle>
           <textarea
             id="notes-field"
             value={noteDraft}
             onChange={(e) => setNoteDraft(e.target.value)}
             onBlur={() => updateCharacter(table.id, character.id, { notes: noteDraft })}
             rows={4}
-            className="w-full rounded-lg border border-purple-900/50 bg-[#0f0d16] p-2 text-sm text-purple-50 outline-none focus:border-purple-500"
+            className="w-full rounded-lg border border-purple-900/50 bg-[var(--surface-well)] p-2 text-sm text-purple-50 outline-none focus:border-purple-500"
             placeholder="Segredos, objetivos, contatos..."
           />
         </Card>

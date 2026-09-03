@@ -83,7 +83,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
             key={key}
             onClick={() => setTab(key)}
             className={`rounded-full px-3 py-1.5 text-sm ${
-              tab === key ? 'bg-purple-700 text-white' : 'bg-[#1a1626] text-purple-300/70 hover:bg-[#241f33]'
+              tab === key ? 'bg-purple-700 text-white' : 'bg-[var(--surface-tab)] text-purple-300/70 hover:bg-[var(--surface-tab-hover)]'
             } ${key === 'mesa' && pendingCount > 0 && tab !== 'mesa' ? 'animate-pulse-ring' : ''}`}
           >
             {label}

@@ -79,7 +79,7 @@ function MenuCard({ emoji, title, desc, onClick }: { emoji: string; title: strin
   return (
     <button
       onClick={onClick}
-      className="rounded-xl border border-purple-900/40 bg-[#151220]/80 p-4 text-left transition hover:border-purple-500 hover:bg-[#1b1729]"
+      className="rounded-xl border border-purple-900/40 bg-[var(--surface-card)]/80 p-4 text-left transition hover:border-purple-500 hover:bg-[var(--surface-card-hover)]"
     >
       <span className="text-2xl">{emoji}</span>
       <p className="mt-1 font-semibold text-purple-100">{title}</p>

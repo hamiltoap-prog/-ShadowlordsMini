@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import { firebaseConfigured } from '../firebase'
 import { newId } from '../lib/id'
+import { resolveTokenStatus } from '../lib/tokenStatus'
 import {
   addSceneLibraryItem,
   deleteSceneLibraryItem,
@@ -27,12 +28,15 @@ const KIND_STYLE: Record<SceneTokenKind, string> = {
 const EMPTY_SCENE: Scene = { backgroundUrl: '', tokens: [], revealed: false, updatedAt: 0 }
 const MIN_ZOOM = 0.5
 const MAX_ZOOM = 3.5
+const NO_FOLDER = '(Sem pasta)'
 
 /**
  * Tela de jogo compartilhada: o Mestre monta o mapa e move os ícones,
  * os jogadores acompanham em tempo real (somente leitura), com zoom próprio.
  * Enquanto o Mestre não "revela" a cena, os jogadores veem uma tela de espera
- * — e o Firestore de fato nega a leitura para eles nesse meio-tempo.
+ * — e o Firestore de fato nega a leitura para eles nesse meio-tempo. Tokens
+ * "preparados" (onBoard=false) ficam numa bandeja só do Mestre até serem
+ * colocados no mapa, mesmo com a cena já revelada.
  */
 export function ScenePage() {
   const { code = '' } = useParams()
@@ -92,13 +96,14 @@ export function ScenePage() {
     [tableId],
   )
 
-  function addToken(token: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>, at?: { x: number; y: number }) {
+  function addToken(token: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>, opts?: { at?: { x: number; y: number }; onBoard?: boolean }) {
     const newToken: SceneToken = {
       ...token,
       id: newId(),
-      x: at?.x ?? 0.5,
-      y: at?.y ?? 0.5,
-      size: token.kind === 'boss' ? 0.12 : 0.07,
+      x: opts?.at?.x ?? 0.5,
+      y: opts?.at?.y ?? 0.5,
+      size: token.kind === 'boss' ? 0.17 : 0.07,
+      onBoard: opts?.onBoard ?? true,
     }
     persist({ ...scene, tokens: [...scene.tokens, newToken] })
   }
@@ -198,7 +203,7 @@ export function ScenePage() {
     const pos = pointerToRelative(e.clientX, e.clientY)
     // Segurando Shift, a imagem vira o mapa de fundo em vez de um ícone.
     if (e.shiftKey) persist({ ...scene, backgroundUrl: url.trim() })
-    else addToken({ label: 'Novo ícone', imageUrl: url.trim(), kind: 'monster' }, pos)
+    else addToken({ label: 'Novo ícone', imageUrl: url.trim(), kind: 'monster' }, { at: pos })
   }
 
   if (!firebaseConfigured) {
@@ -210,6 +215,9 @@ export function ScenePage() {
   if (table === null) return <p className="p-8 text-center text-red-300">Mesa não encontrada.</p>
 
   const showWaitingScreen = !isGM && (sceneState === null || !sceneState.revealed)
+  // Jogadores nunca veem tokens ainda "preparados" na bandeja do Mestre.
+  const visibleTokens = scene.tokens.filter((t) => isGM || t.onBoard !== false)
+  const stagedTokens = scene.tokens.filter((t) => t.onBoard === false)
 
   return (
     <div className="flex min-h-screen flex-col gap-3 p-3">
@@ -236,7 +244,7 @@ export function ScenePage() {
       </div>
 
       {showWaitingScreen ? (
-        <div className="flex min-h-[60vh] flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-purple-900/50 bg-[#0d0b13] text-center">
+        <div className="flex min-h-[60vh] flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-purple-900/50 bg-[var(--surface-board)] text-center">
           <span className="text-4xl">🕯️</span>
           <p className="text-purple-200">O Mestre está preparando a cena...</p>
           <p className="text-xs text-purple-400/50">A tela vai aparecer automaticamente assim que ele revelar.</p>
@@ -247,7 +255,7 @@ export function ScenePage() {
           onPointerDown={onViewportPointerDown}
           onDrop={onDrop}
           onDragOver={(e) => isGM && e.preventDefault()}
-          className="relative min-h-[60vh] flex-1 cursor-grab overflow-hidden rounded-xl border border-purple-900/50 bg-[#0d0b13] active:cursor-grabbing"
+          className="relative min-h-[60vh] flex-1 cursor-grab overflow-hidden rounded-xl border border-purple-900/50 bg-[var(--surface-board)] active:cursor-grabbing"
         >
           <div className="pointer-events-none absolute right-2 top-2 z-10 flex gap-1">
             <button
@@ -291,40 +299,50 @@ export function ScenePage() {
               </p>
             )}
 
-            {scene.tokens.map((t) => (
-              <div
+            {visibleTokens.map((t) => (
+              <SceneTokenView
                 key={t.id}
+                token={t}
+                isGM={isGM}
+                characters={characters}
+                npcs={npcs}
                 onPointerDown={(e) => {
                   if (!isGM) return
                   e.preventDefault()
                   e.stopPropagation()
                   setDragId(t.id)
                 }}
-                className={`absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-full ring-2 ${KIND_STYLE[t.kind]} ${
-                  isGM ? 'cursor-grab active:cursor-grabbing' : ''
-                }`}
-                style={{
-                  left: `${t.x * 100}%`,
-                  top: `${t.y * 100}%`,
-                  width: `${t.size * 100}%`,
-                  aspectRatio: '1 / 1',
-                }}
-                title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})`}
-              >
-                {t.imageUrl ? (
-                  <img src={t.imageUrl} alt={t.label} className="h-full w-full rounded-full object-cover" draggable={false} />
-                ) : (
-                  <span className="flex h-full w-full items-center justify-center text-center text-[10px] font-semibold text-white">
-                    {t.label.slice(0, 8)}
-                  </span>
-                )}
-                <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/70 px-1 text-[10px] text-purple-100">
-                  {t.label}
-                </span>
-              </div>
+              />
             ))}
           </div>
         </div>
+      )}
+
+      {isGM && stagedTokens.length > 0 && (
+        <Card className="flex flex-col gap-2 p-3">
+          <SectionTitle>🎭 Bandeja de Monstros Preparados</SectionTitle>
+          <p className="text-xs text-purple-300/50">
+            Ficam escondidos dos jogadores até você colocar no mapa — ótimo para uma emboscada surpresa.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {stagedTokens.map((t) => (
+              <div key={t.id} className="flex items-center gap-2 rounded-lg border border-purple-900/40 bg-black/20 p-2">
+                <SceneTokenThumb token={t} />
+                <span className="text-sm text-purple-100">{t.label}</span>
+                <Button
+                  variant="primary"
+                  onClick={() => updateToken(t.id, { onBoard: true, x: 0.5, y: 0.5 })}
+                  className="text-xs"
+                >
+                  Colocar no mapa
+                </Button>
+                <button className="text-xs text-red-400 hover:text-red-200" onClick={() => removeToken(t.id)}>
+                  remover
+                </button>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
 
       {isGM && (
@@ -335,12 +353,93 @@ export function ScenePage() {
           npcs={npcs}
           library={library}
           onSetBackground={(url) => persist({ ...scene, backgroundUrl: url })}
-          onAddToken={(t) => addToken(t)}
+          onAddToken={addToken}
           onUpdateToken={updateToken}
           onRemoveToken={removeToken}
           onClear={() => persist({ ...scene, tokens: [] })}
         />
       )}
+    </div>
+  )
+}
+
+function SceneTokenThumb({ token }: { token: SceneToken }) {
+  return (
+    <div
+      className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full ring-2 ${KIND_STYLE[token.kind]}`}
+    >
+      {token.imageUrl ? (
+        <img src={token.imageUrl} alt={token.label} className="h-full w-full object-cover" />
+      ) : (
+        <span className="text-[9px] font-semibold text-white">{token.label.slice(0, 4)}</span>
+      )}
+    </div>
+  )
+}
+
+function SceneTokenView({
+  token: t,
+  isGM,
+  characters,
+  npcs,
+  onPointerDown,
+}: {
+  token: SceneToken
+  isGM: boolean
+  characters: Character[]
+  npcs: NPC[]
+  onPointerDown: (e: React.PointerEvent) => void
+}) {
+  const status = resolveTokenStatus(t.refType, t.refId, characters, npcs)
+  const isBoss = t.kind === 'boss'
+  const statusRing =
+    status?.tier === 'critical'
+      ? 'outline outline-[3px] outline-red-500 outline-offset-2 animate-pulse-ring'
+      : status?.tier === 'hurt'
+        ? 'outline outline-[3px] outline-amber-400 outline-offset-2'
+        : ''
+
+  return (
+    <div
+      onPointerDown={onPointerDown}
+      className={`absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-full ${
+        isBoss ? 'ring-[5px] animate-boss-glow' : 'ring-2'
+      } ${KIND_STYLE[t.kind]} ${statusRing} ${isGM ? 'cursor-grab active:cursor-grabbing' : ''} ${
+        t.onBoard === false ? 'opacity-40' : ''
+      }`}
+      style={{
+        left: `${t.x * 100}%`,
+        top: `${t.y * 100}%`,
+        width: `${t.size * 100}%`,
+        aspectRatio: '1 / 1',
+      }}
+      title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
+    >
+      {isBoss && <span className="absolute -top-4 left-1/2 -translate-x-1/2 text-lg drop-shadow">👑</span>}
+      {t.imageUrl ? (
+        <img src={t.imageUrl} alt={t.label} className="h-full w-full rounded-full object-cover" draggable={false} />
+      ) : (
+        <span className="flex h-full w-full items-center justify-center text-center text-[10px] font-semibold text-white">
+          {t.label.slice(0, 8)}
+        </span>
+      )}
+      {status && status.tier !== 'ok' && (
+        <span
+          className={`absolute -bottom-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full border border-black/40 text-[9px] ${
+            status.tier === 'critical' ? 'bg-red-600' : 'bg-amber-500'
+          }`}
+        >
+          {status.tier === 'critical' ? '💀' : '🩸'}
+        </span>
+      )}
+      {status && status.conditions.length > 0 && (
+        <span className="absolute -left-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full border border-black/40 bg-purple-700 text-[9px]">
+          ⚠
+        </span>
+      )}
+      <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/70 px-1 text-[10px] text-purple-100">
+        {t.label}
+      </span>
     </div>
   )
 }
@@ -363,19 +462,30 @@ function SceneControls({
   npcs: NPC[]
   library: SceneLibraryItem[]
   onSetBackground: (url: string) => void
-  onAddToken: (t: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>) => void
+  onAddToken: (t: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>, opts?: { at?: { x: number; y: number }; onBoard?: boolean }) => void
   onUpdateToken: (id: string, patch: Partial<SceneToken>) => void
   onRemoveToken: (id: string) => void
   onClear: () => void
 }) {
   const [bgUrl, setBgUrl] = useState(scene.backgroundUrl)
   const [bgLabel, setBgLabel] = useState('')
+  const [bgFolder, setBgFolder] = useState('')
   const [tokenLabel, setTokenLabel] = useState('')
   const [tokenUrl, setTokenUrl] = useState('')
   const [tokenKind, setTokenKind] = useState<SceneTokenKind>('monster')
 
   const maps = library.filter((i) => i.kind === 'map')
   const tokenPresets = library.filter((i) => i.kind === 'token')
+
+  const mapsByFolder = useMemo(() => {
+    const groups: Record<string, SceneLibraryItem[]> = {}
+    for (const m of maps) {
+      const key = m.folder?.trim() || NO_FOLDER
+      groups[key] = groups[key] ?? []
+      groups[key].push(m)
+    }
+    return Object.entries(groups).sort(([a], [b]) => (a === NO_FOLDER ? 1 : b === NO_FOLDER ? -1 : a.localeCompare(b)))
+  }, [maps])
 
   return (
     <>
@@ -406,7 +516,7 @@ function SceneControls({
           <select
             value={tokenKind}
             onChange={(e) => setTokenKind(e.target.value as SceneTokenKind)}
-            className="rounded-lg border border-purple-900/50 bg-[#0f0d16] px-2 py-1.5 text-sm text-purple-50"
+            className="rounded-lg border border-purple-900/50 bg-[var(--surface-well)] px-2 py-1.5 text-sm text-purple-50"
           >
             {(Object.keys(SCENE_TOKEN_LABELS) as SceneTokenKind[]).map((k) => (
               <option key={k} value={k}>
@@ -423,7 +533,18 @@ function SceneControls({
               setTokenUrl('')
             }}
           >
-            + Adicionar ícone
+            + Adicionar ao mapa
+          </Button>
+          <Button
+            disabled={!tokenLabel.trim()}
+            title="Fica escondido numa bandeja até você colocar no mapa"
+            onClick={() => {
+              onAddToken({ label: tokenLabel.trim(), imageUrl: tokenUrl.trim() || undefined, kind: tokenKind }, { onBoard: false })
+              setTokenLabel('')
+              setTokenUrl('')
+            }}
+          >
+            🎭 Preparar (bandeja)
           </Button>
         </div>
 
@@ -432,20 +553,30 @@ function SceneControls({
           {characters.map((c) => (
             <button
               key={c.id}
-              onClick={() => onAddToken({ label: c.name, imageUrl: c.portraitUrl, kind: 'pc' })}
+              onClick={() => onAddToken({ label: c.name, imageUrl: c.portraitUrl, kind: 'pc', refType: 'character', refId: c.id })}
               className="rounded-full border border-emerald-800/50 px-2 py-0.5 text-xs text-emerald-200 hover:border-emerald-500"
             >
               + {c.name}
             </button>
           ))}
           {npcs.map((n) => (
-            <button
-              key={n.id}
-              onClick={() => onAddToken({ label: n.name, imageUrl: n.portraitUrl, kind: 'monster' })}
-              className="rounded-full border border-orange-800/50 px-2 py-0.5 text-xs text-orange-200 hover:border-orange-500"
-            >
-              + {n.name}
-            </button>
+            <span key={n.id} className="flex items-center gap-0.5">
+              <button
+                onClick={() => onAddToken({ label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id })}
+                className="rounded-full border border-orange-800/50 px-2 py-0.5 text-xs text-orange-200 hover:border-orange-500"
+              >
+                + {n.name}
+              </button>
+              <button
+                title="Preparar na bandeja em vez de colocar direto no mapa"
+                onClick={() =>
+                  onAddToken({ label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id }, { onBoard: false })
+                }
+                className="rounded-full border border-orange-800/30 px-1.5 py-0.5 text-xs text-orange-300/70 hover:border-orange-500"
+              >
+                🎭
+              </button>
+            </span>
           ))}
         </div>
 
@@ -453,11 +584,13 @@ function SceneControls({
           <div className="flex flex-col gap-1 border-t border-purple-900/30 pt-2">
             {scene.tokens.map((t) => (
               <div key={t.id} className="flex flex-wrap items-center gap-2 text-xs text-purple-200">
-                <span className="w-32 truncate">{t.label}</span>
+                <span className="w-32 truncate">
+                  {t.label} {t.onBoard === false && <span className="text-purple-400/50">(na bandeja)</span>}
+                </span>
                 <select
                   value={t.kind}
                   onChange={(e) => onUpdateToken(t.id, { kind: e.target.value as SceneTokenKind })}
-                  className="rounded border border-purple-900/50 bg-[#0f0d16] px-1 py-0.5 text-xs"
+                  className="rounded border border-purple-900/50 bg-[var(--surface-well)] px-1 py-0.5 text-xs"
                 >
                   {(Object.keys(SCENE_TOKEN_LABELS) as SceneTokenKind[]).map((k) => (
                     <option key={k} value={k}>
@@ -470,7 +603,7 @@ function SceneControls({
                   <input
                     type="range"
                     min={3}
-                    max={25}
+                    max={30}
                     value={Math.round(t.size * 100)}
                     onChange={(e) => onUpdateToken(t.id, { size: Number(e.target.value) / 100 })}
                   />
@@ -493,26 +626,41 @@ function SceneControls({
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
             <p className="mb-1 text-xs uppercase text-purple-400/60">Mapas salvos</p>
-            <div className="flex flex-col gap-1">
-              {maps.map((m) => (
-                <div key={m.id} className="flex items-center justify-between gap-2 rounded border border-purple-900/30 bg-black/20 px-2 py-1 text-xs">
-                  <button className="truncate text-left text-purple-100 hover:text-purple-300" onClick={() => onSetBackground(m.imageUrl ?? '')}>
-                    🗺️ {m.label}
-                  </button>
-                  <button className="text-red-400 hover:text-red-200" onClick={() => deleteSceneLibraryItem(tableId, m.id)}>
-                    ✕
-                  </button>
+            <div className="flex flex-col gap-2">
+              {mapsByFolder.map(([folder, items]) => (
+                <div key={folder}>
+                  <p className="mb-0.5 text-[10px] uppercase tracking-wide text-purple-400/50">📁 {folder}</p>
+                  <div className="flex flex-col gap-1">
+                    {items.map((m) => (
+                      <div key={m.id} className="flex items-center justify-between gap-2 rounded border border-purple-900/30 bg-black/20 px-2 py-1 text-xs">
+                        <button className="truncate text-left text-purple-100 hover:text-purple-300" onClick={() => onSetBackground(m.imageUrl ?? '')}>
+                          🗺️ {m.label}
+                        </button>
+                        <button className="text-red-400 hover:text-red-200" onClick={() => deleteSceneLibraryItem(tableId, m.id)}>
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
               {maps.length === 0 && <p className="text-xs text-purple-400/40">Nenhum mapa salvo ainda.</p>}
             </div>
-            <div className="mt-2 flex gap-1">
-              <Input value={bgLabel} onChange={(e) => setBgLabel(e.target.value)} placeholder="Nome para salvar o mapa atual" className="text-xs" />
+            <div className="mt-2 flex flex-wrap gap-1">
+              <Input value={bgLabel} onChange={(e) => setBgLabel(e.target.value)} placeholder="Nome do mapa" className="w-32 text-xs" />
+              <Input value={bgFolder} onChange={(e) => setBgFolder(e.target.value)} placeholder="Pasta (opcional)" className="w-28 text-xs" />
               <Button
                 disabled={!bgUrl.trim() || !bgLabel.trim()}
                 onClick={async () => {
-                  await addSceneLibraryItem(tableId, { kind: 'map', label: bgLabel.trim(), imageUrl: bgUrl.trim(), createdAt: Date.now() })
+                  await addSceneLibraryItem(tableId, {
+                    kind: 'map',
+                    label: bgLabel.trim(),
+                    imageUrl: bgUrl.trim(),
+                    folder: bgFolder.trim() || undefined,
+                    createdAt: Date.now(),
+                  })
                   setBgLabel('')
+                  setBgFolder('')
                 }}
               >
                 Salvar
@@ -531,9 +679,18 @@ function SceneControls({
                   >
                     {t.tokenKind === 'boss' ? '👑' : t.tokenKind === 'npc' ? '🙂' : '👹'} {t.label}
                   </button>
-                  <button className="text-red-400 hover:text-red-200" onClick={() => deleteSceneLibraryItem(tableId, t.id)}>
-                    ✕
-                  </button>
+                  <span className="flex items-center gap-1">
+                    <button
+                      title="Preparar na bandeja"
+                      className="text-purple-400 hover:text-purple-200"
+                      onClick={() => onAddToken({ label: t.label, imageUrl: t.imageUrl, kind: t.tokenKind ?? 'monster' }, { onBoard: false })}
+                    >
+                      🎭
+                    </button>
+                    <button className="text-red-400 hover:text-red-200" onClick={() => deleteSceneLibraryItem(tableId, t.id)}>
+                      ✕
+                    </button>
+                  </span>
                 </div>
               ))}
               {tokenPresets.length === 0 && <p className="text-xs text-purple-400/40">Nenhum ícone salvo ainda.</p>}

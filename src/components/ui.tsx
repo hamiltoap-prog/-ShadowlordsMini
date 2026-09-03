@@ -3,7 +3,7 @@ import type { ButtonHTMLAttributes, InputHTMLAttributes, PropsWithChildren, Sele
 export function Card({ children, className = '' }: PropsWithChildren<{ className?: string }>) {
   return (
     <div
-      className={`rounded-xl border border-purple-900/40 bg-[#151220]/80 shadow-[0_0_0_1px_rgba(170,59,255,0.03)] ${className}`}
+      className={`rounded-xl border border-purple-900/40 bg-[var(--surface-card)]/80 shadow-[0_0_0_1px_rgba(170,59,255,0.03)] ${className}`}
     >
       {children}
     </div>
@@ -22,7 +22,7 @@ type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger'
 
 const variantClasses: Record<ButtonVariant, string> = {
   primary: 'bg-purple-700 hover:bg-purple-600 text-white shadow-purple-900/40 shadow-md',
-  secondary: 'bg-[#241f33] hover:bg-[#302a45] text-purple-100 border border-purple-800/50',
+  secondary: 'bg-[var(--surface-tab-hover)] hover:bg-[var(--surface-tab-active)] text-purple-100 border border-purple-800/50',
   ghost: 'bg-transparent hover:bg-white/5 text-purple-200',
   danger: 'bg-red-900/70 hover:bg-red-800 text-red-100',
 }
@@ -44,7 +44,7 @@ export function Input(props: InputHTMLAttributes<HTMLInputElement>) {
   return (
     <input
       {...props}
-      className={`w-full rounded-lg border border-purple-900/50 bg-[#0f0d16] px-3 py-1.5 text-sm text-purple-50 outline-none placeholder:text-purple-400/40 focus:border-purple-500 ${props.className ?? ''}`}
+      className={`w-full rounded-lg border border-purple-900/50 bg-[var(--surface-well)] px-3 py-1.5 text-sm text-purple-50 outline-none placeholder:text-purple-400/40 focus:border-purple-500 ${props.className ?? ''}`}
     />
   )
 }
@@ -53,7 +53,7 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
     <select
       {...props}
-      className={`w-full rounded-lg border border-purple-900/50 bg-[#0f0d16] px-3 py-1.5 text-sm text-purple-50 outline-none focus:border-purple-500 ${props.className ?? ''}`}
+      className={`w-full rounded-lg border border-purple-900/50 bg-[var(--surface-well)] px-3 py-1.5 text-sm text-purple-50 outline-none focus:border-purple-500 ${props.className ?? ''}`}
     />
   )
 }

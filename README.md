@@ -5,17 +5,23 @@ grupo. Feito para jogar com amigos por chamada de voz (Discord, etc.) — este s
 apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Discord.
 
 - 🎲 Fichas de personagem completas e ao vivo (todos veem PV, dados e resultados em tempo real)
+- 🌗 Modo claro/escuro, alternável a qualquer momento (botão flutuante), lembrado por navegador
 - ✋ **Rolagens passam pelo Mestre**: o jogador pede, o Mestre libera ou nega — sem rolagem
   dupla nem ação fora de hora (o Mestre pode desligar isso quando quiser)
 - 🎬 **Animação de dados** aparece para a mesa inteira a cada rolagem; o Mestre também tem
   rolagem secreta, que só ele enxerga
 - 🗺️ **Tela de jogo** em aba separada, com zoom e navegação livres para cada um: o Mestre monta
-  o mapa e arrasta ícones de personagens, NPCs, monstros e chefes; os jogadores acompanham em
-  tempo real, sem poder mexer. Uma **tela de espera** cobre tudo enquanto o Mestre prepara a
-  cena, e uma **biblioteca da mesa** guarda mapas e monstros favoritos para reusar depois
+  o mapa e arrasta ícones de personagens, NPCs, monstros e chefes (chefes ganham um ícone maior,
+  com coroa e brilho pulsante); os jogadores acompanham em tempo real, sem poder mexer. Uma
+  **tela de espera** cobre tudo enquanto o Mestre prepara a cena, uma **bandeja de monstros
+  preparados** deixa surpresas escondidas até serem colocadas no mapa, e a **biblioteca da
+  mesa** guarda mapas (organizados em pastas) e monstros favoritos para reusar depois
+- 🩸 A tela de jogo mostra quando alguém está avariado (< 50% PV) ou crítico (< 10% PV) e quais
+  condições afetam cada um — sem nunca expor o número exato de PV aos outros jogadores
 - 🧬 **Ancestralidades** (Anão, Elfo, Goblin, Meio-Orc, Halfling, Humano) com suas
   características próprias aplicadas automaticamente nas rolagens
 - 🩹 **Condições de status** (envenenado, paralisado, etc.) que o Mestre marca em qualquer ficha
+- 🖼️ Foto de perfil do personagem, trocável a qualquer momento com um clique no avatar
 - 🧙 Painel do Mestre: cria NPCs simples do Bestiário **ou personagens completos** (aliados,
   vilões, substitutos), rastreador de combate, tabelas aleatórias, referência completa das
   regras, e edição de atributos, PV, defesa e moedas de qualquer ficha

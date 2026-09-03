@@ -2,6 +2,83 @@
 
 :root {
   color-scheme: dark;
+
+  /* Superfícies próprias do app (não fazem parte da paleta do Tailwind, então
+   * precisam de variáveis manuais para reagir ao tema). Valores padrão = escuro. */
+  --surface-page: #0b0a10;
+  --surface-page-glow: #1c1730;
+  --surface-card: #151220;
+  --surface-card-hover: #1b1729;
+  --surface-well: #0f0d16;
+  --surface-tab: #1a1626;
+  --surface-tab-hover: #241f33;
+  --surface-tab-active: #302a45;
+  --surface-board: #0d0b13;
+  --die-face: #241a33;
+  --card-secret: #1a1408;
+  --card-fail: #1a0d0f;
+  --card-neutral: #150f22;
+  --card-success: #0d1a14;
+  --body-text: #e8e3f0;
+  --scrollbar-track: #131019;
+  --scrollbar-thumb: #3a2f4d;
+}
+
+/* Modo claro: sobrescreve as superfícies próprias acima e inverte os tons da
+ * paleta purple/emerald/red/amber/sky/orange do Tailwind (usadas nas classes
+ * já espalhadas pelo app, ex. bg-purple-900/30, text-purple-100). Como o
+ * Tailwind v4 gera cada cor como uma variável CSS, isso re-tematiza o app
+ * inteiro sem precisar editar componente por componente. */
+:root.light {
+  color-scheme: light;
+
+  --surface-page: #f7f6fb;
+  --surface-page-glow: #ece6f7;
+  --surface-card: #ffffff;
+  --surface-card-hover: #f2eef9;
+  --surface-well: #f3f1f8;
+  --surface-tab: #efebf7;
+  --surface-tab-hover: #e6ddf5;
+  --surface-tab-active: #ddd0f0;
+  --surface-board: #efebf7;
+  --die-face: #e6ddf5;
+  --card-secret: #fff7e6;
+  --card-fail: #fdeceb;
+  --card-neutral: #f3eefc;
+  --card-success: #eafbf1;
+  --body-text: #241c33;
+  --scrollbar-track: #ece7f4;
+  --scrollbar-thumb: #cabde0;
+
+  --color-purple-50: #2b1250;
+  --color-purple-100: #1e1033;
+  --color-purple-200: #2a1747;
+  --color-purple-300: #4c3b68;
+  --color-purple-400: #6b5b8a;
+  --color-purple-900: #ece7f7;
+  --color-purple-950: #f6f4fb;
+  --color-black: #f2eff7;
+
+  --color-emerald-200: #14532d;
+  --color-emerald-300: #166534;
+  --color-emerald-900: #d7f5e3;
+  --color-emerald-950: #ecfdf5;
+
+  --color-red-100: #7f1d1d;
+  --color-red-200: #7f1d1d;
+  --color-red-300: #991b1b;
+  --color-red-400: #b91c1c;
+  --color-red-900: #fde3e2;
+  --color-red-950: #fef2f2;
+
+  --color-amber-100: #78350f;
+  --color-amber-200: #78350f;
+  --color-amber-300: #92400e;
+  --color-amber-950: #fffbeb;
+
+  --color-sky-900: #e0f2fe;
+  --color-orange-200: #7c2d12;
+  --color-orange-900: #ffedd5;
 }
 
 html,
@@ -12,9 +89,10 @@ body,
 
 body {
   margin: 0;
-  background: #0b0a10;
-  color: #e8e3f0;
+  background: var(--surface-page);
+  color: var(--body-text);
   font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 ::-webkit-scrollbar {
@@ -22,10 +100,10 @@ body {
   height: 10px;
 }
 ::-webkit-scrollbar-track {
-  background: #131019;
+  background: var(--scrollbar-track);
 }
 ::-webkit-scrollbar-thumb {
-  background: #3a2f4d;
+  background: var(--scrollbar-thumb);
   border-radius: 6px;
 }
 
@@ -72,4 +150,17 @@ body {
 }
 .animate-pulse-ring {
   animation: pulse-ring 1.6s ease-out infinite;
+}
+
+@keyframes boss-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(248, 113, 113, 0.55), 0 0 14px 2px rgba(251, 191, 36, 0.35);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(248, 113, 113, 0), 0 0 22px 6px rgba(251, 191, 36, 0.55);
+  }
+}
+.animate-boss-glow {
+  animation: boss-glow 2s ease-in-out infinite;
 }

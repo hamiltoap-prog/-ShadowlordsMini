@@ -55,7 +55,7 @@ function Die({ value, rolling, delay }: { value: number; rolling: boolean; delay
         return (
           <span
             key={i}
-            className={`h-full w-full rounded-full ${on ? (rolling ? 'bg-purple-200/70' : 'bg-[#241a33]') : ''}`}
+            className={`h-full w-full rounded-full ${on ? (rolling ? 'bg-purple-200/70' : 'bg-[var(--die-face)]') : ''}`}
           />
         )
       })}
@@ -141,12 +141,12 @@ export function DiceOverlay({ tableId, isGM }: { tableId: string; isGM: boolean 
       <div
         className={`animate-roll-in pointer-events-auto flex max-w-md flex-col items-center gap-2 rounded-2xl border px-5 py-4 shadow-2xl backdrop-blur ${
           current.secret
-            ? 'border-amber-600/60 bg-[#1a1408]/95'
+            ? 'border-amber-600/60 bg-[var(--card-secret)]/95'
             : current.success === true && !rolling
-              ? 'border-emerald-600/60 bg-[#0d1a14]/95'
+              ? 'border-emerald-600/60 bg-[var(--card-success)]/95'
               : current.success === false && !rolling
-                ? 'border-red-700/60 bg-[#1a0d0f]/95'
-                : 'border-purple-700/60 bg-[#150f22]/95'
+                ? 'border-red-700/60 bg-[var(--card-fail)]/95'
+                : 'border-purple-700/60 bg-[var(--card-neutral)]/95'
         }`}
       >
         <p className="text-xs uppercase tracking-widest text-purple-300/70">
