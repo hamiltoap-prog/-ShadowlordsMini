@@ -10,6 +10,7 @@ import {
   totalDefense,
 } from '../lib/characterMath'
 import { d66RangeIndex, roll1d66, roll3d6, roll1d6 } from '../lib/dice'
+import { normalizeImageUrl } from '../lib/imageUrl'
 import { newId } from '../lib/id'
 import { ARMORS, GEAR, WEAPONS } from '../data/equipment'
 import { OCCUPATIONS } from '../data/occupations'
@@ -191,7 +192,7 @@ export function CharacterCreate({
         xp: 0,
         xpSpent: 0,
         notes: '',
-        portraitUrl: portraitUrl.trim() || undefined,
+        portraitUrl: normalizeImageUrl(portraitUrl) || undefined,
         createdAt: now,
         updatedAt: now,
         isAlive: true,
@@ -229,7 +230,8 @@ export function CharacterCreate({
             <Input
               value={portraitUrl}
               onChange={(e) => setPortraitUrl(e.target.value)}
-              placeholder="URL da foto de perfil (opcional)"
+              onBlur={() => setPortraitUrl((u) => normalizeImageUrl(u))}
+              placeholder="URL da foto de perfil (opcional, aceita link do Google Drive)"
             />
           </div>
         </div>

@@ -4,6 +4,7 @@ import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import { firebaseConfigured } from '../firebase'
 import { newId } from '../lib/id'
+import { normalizeImageUrl } from '../lib/imageUrl'
 import { resolveTokenStatus } from '../lib/tokenStatus'
 import {
   addSceneLibraryItem,
@@ -206,12 +207,13 @@ export function ScenePage() {
   function onDrop(e: React.DragEvent) {
     if (!isGM) return
     e.preventDefault()
-    const url = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || ''
-    if (!url.trim()) return
+    const raw = e.dataTransfer.getData('text/uri-list') || e.dataTransfer.getData('text/plain') || ''
+    if (!raw.trim()) return
+    const url = normalizeImageUrl(raw)
     const pos = pointerToRelative(e.clientX, e.clientY)
     // Segurando Shift, a imagem vira o mapa de fundo em vez de um ícone.
-    if (e.shiftKey) persist({ ...scene, backgroundUrl: url.trim() })
-    else addToken({ label: 'Novo ícone', imageUrl: url.trim(), kind: 'monster' }, { at: pos })
+    if (e.shiftKey) persist({ ...scene, backgroundUrl: url })
+    else addToken({ label: 'Novo ícone', imageUrl: url, kind: 'monster' }, { at: pos })
   }
 
   if (!firebaseConfigured) {
@@ -526,8 +528,14 @@ function SceneControls({
         <SectionTitle>Controles do Mestre</SectionTitle>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Input value={bgUrl} onChange={(e) => setBgUrl(e.target.value)} placeholder="URL do mapa de fundo" className="w-72" />
-          <Button variant="primary" onClick={() => onSetBackground(bgUrl.trim())}>
+          <Input
+            value={bgUrl}
+            onChange={(e) => setBgUrl(e.target.value)}
+            onBlur={() => setBgUrl((u) => normalizeImageUrl(u))}
+            placeholder="URL do mapa de fundo (aceita link do Google Drive)"
+            className="w-72"
+          />
+          <Button variant="primary" onClick={() => onSetBackground(normalizeImageUrl(bgUrl))}>
             Definir mapa
           </Button>
           <Button
@@ -545,7 +553,13 @@ function SceneControls({
 
         <div className="flex flex-wrap items-center gap-2 border-t border-purple-900/30 pt-2">
           <Input value={tokenLabel} onChange={(e) => setTokenLabel(e.target.value)} placeholder="Nome do ícone" className="w-40" />
-          <Input value={tokenUrl} onChange={(e) => setTokenUrl(e.target.value)} placeholder="URL da imagem (opcional)" className="w-56" />
+          <Input
+            value={tokenUrl}
+            onChange={(e) => setTokenUrl(e.target.value)}
+            onBlur={() => setTokenUrl((u) => normalizeImageUrl(u))}
+            placeholder="URL da imagem (opcional, aceita link do Google Drive)"
+            className="w-56"
+          />
           <select
             value={tokenKind}
             onChange={(e) => setTokenKind(e.target.value as SceneTokenKind)}
@@ -561,7 +575,7 @@ function SceneControls({
             variant="primary"
             disabled={!tokenLabel.trim()}
             onClick={() => {
-              onAddToken({ label: tokenLabel.trim(), imageUrl: tokenUrl.trim() || undefined, kind: tokenKind })
+              onAddToken({ label: tokenLabel.trim(), imageUrl: normalizeImageUrl(tokenUrl) || undefined, kind: tokenKind })
               setTokenLabel('')
               setTokenUrl('')
             }}
@@ -572,7 +586,7 @@ function SceneControls({
             disabled={!tokenLabel.trim()}
             title="Fica escondido numa bandeja até você colocar no mapa"
             onClick={() => {
-              onAddToken({ label: tokenLabel.trim(), imageUrl: tokenUrl.trim() || undefined, kind: tokenKind }, { onBoard: false })
+              onAddToken({ label: tokenLabel.trim(), imageUrl: normalizeImageUrl(tokenUrl) || undefined, kind: tokenKind }, { onBoard: false })
               setTokenLabel('')
               setTokenUrl('')
             }}
@@ -705,7 +719,7 @@ function SceneControls({
                   await addSceneLibraryItem(tableId, {
                     kind: 'map',
                     label: bgLabel.trim(),
-                    imageUrl: bgUrl.trim(),
+                    imageUrl: normalizeImageUrl(bgUrl),
                     folder: bgFolder.trim() || undefined,
                     createdAt: Date.now(),
                   })
@@ -767,7 +781,7 @@ function SceneControls({
                 await addSceneLibraryItem(tableId, {
                   kind: 'token',
                   label: tokenLabel.trim(),
-                  imageUrl: tokenUrl.trim() || undefined,
+                  imageUrl: normalizeImageUrl(tokenUrl) || undefined,
                   tokenKind,
                   createdAt: Date.now(),
                 })

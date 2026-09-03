@@ -30,6 +30,9 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   defesa e moedas de qualquer ficha
 - 🖼️ **Imagens de monstro memorizadas por nome**: edite a foto de uma criatura uma vez e toda
   futura adição do mesmo nome (bestiário ou personalizada) já vem com aquela imagem
+- 🔗 **Links do Google Drive funcionam direto**: cole o link de compartilhamento comum
+  (`.../file/d/ID/view`) em qualquer campo de foto ou imagem — ele é convertido automaticamente
+  para o formato que carrega de verdade
 - ⚔️ Criação de personagem escolhendo cada opção (ou sorteando nos dados), com foto de perfil
 - 🛒 Loja liberada pelo Mestre: compras só acontecem quando o grupo está num lugar de comércio
 - 🔗 Entrada de qualquer aparelho: jogador entra com o código da mesa + nome do personagem;

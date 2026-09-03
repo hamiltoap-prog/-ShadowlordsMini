@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { normalizeImageUrl } from '../lib/imageUrl'
 import { Portrait } from './Portrait'
 import { Button, Input } from './ui'
 
@@ -26,7 +27,8 @@ export function PortraitEditor({
             autoFocus
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="URL da foto"
+            onBlur={() => setDraft((d) => normalizeImageUrl(d))}
+            placeholder="URL da foto (aceita link do Google Drive)"
             className="w-48"
           />
         </div>
@@ -34,7 +36,7 @@ export function PortraitEditor({
           <Button
             variant="primary"
             onClick={() => {
-              onSave(draft.trim())
+              onSave(normalizeImageUrl(draft))
               setEditing(false)
             }}
           >
