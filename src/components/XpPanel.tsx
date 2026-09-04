@@ -59,8 +59,8 @@ export function XpPanel({
         XP disponível: <b>{character.xp}</b> (total gasto: {character.xpSpent})
       </p>
       <div className="grid gap-2 sm:grid-cols-2">
-        <Button disabled={busy || character.xp < 1} onClick={spendHp}>
-          {XP_TABLE[0].label} (1 XP)
+        <Button disabled={busy || character.xp < 1} onClick={spendHp} title={XP_TABLE[0].label}>
+          +1 PV máx · 1 XP
         </Button>
         <div className="flex gap-1">
           <Input value={newSkill} onChange={(e) => setNewSkill(e.target.value)} placeholder="Nova Habilidade" />
@@ -68,8 +68,8 @@ export function XpPanel({
             2 XP
           </Button>
         </div>
-        <Button disabled={busy || character.xp < 3} onClick={spendDefense}>
-          {XP_TABLE[2].label} (3 XP)
+        <Button disabled={busy || character.xp < 3} onClick={spendDefense} title={XP_TABLE[2].label}>
+          +1 Defesa · 3 XP
         </Button>
         <div className="flex gap-1">
           <Select value={attrKey} onChange={(e) => setAttrKey(e.target.value as AttributeKey)} className="w-auto">
@@ -79,11 +79,11 @@ export function XpPanel({
               </option>
             ))}
           </Select>
-          <Button disabled={busy || character.xp < 4} onClick={spendAttribute}>
-            +1 Atributo (4 XP)
+          <Button disabled={busy || character.xp < 4} onClick={spendAttribute} title="+1 Atributo">
+            +1 Atrib · 4 XP
           </Button>
-          <Button disabled={busy || character.xp < 5} onClick={spendModifier}>
-            +1 Modificador (5 XP)
+          <Button disabled={busy || character.xp < 5} onClick={spendModifier} title="+1 Modificador">
+            +1 Mod · 5 XP
           </Button>
         </div>
       </div>

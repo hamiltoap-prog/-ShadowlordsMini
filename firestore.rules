@@ -9,6 +9,9 @@ rules_version = '2';
 // - Um personagem é editado por quem o controla (ownerUid) ou pelo Mestre.
 //   Um jogador pode "reivindicar" a ficha em outro dispositivo entrando com o
 //   nome do personagem — essa troca só altera ownerUid.
+// - O super administrador do sistema (dono da instalação) enxerga e administra
+//   todas as mesas. Ele é identificado por um documento em /superAdmins, criado
+//   fora do app (pelo Admin SDK) — nunca pelo cliente.
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -24,22 +27,37 @@ service cloud.firestore {
       return signedIn() && tableData(tableId).gmUid == request.auth.uid;
     }
 
+    function isSuperAdmin() {
+      return signedIn() && exists(/databases/$(database)/documents/superAdmins/$(request.auth.uid));
+    }
+
+    // Crachá do super administrador: cada um só consegue checar o próprio, e
+    // ninguém cria ou apaga pelo app — só pelo Admin SDK.
+    match /superAdmins/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow list, write: if false;
+    }
+
     // Índice particular de cada Mestre: lista das mesas que ele criou, para
     // reencontrá-las ao entrar de outro dispositivo. Só o próprio dono lê.
     match /gmTables/{uid}/tables/{tableId} {
       allow read, write: if signedIn() && request.auth.uid == uid;
+      allow delete: if (signedIn() && request.auth.uid == uid) || isSuperAdmin();
     }
 
     match /tables/{tableId} {
       allow get: if signedIn();
-      // Ninguém pode varrer a lista de mesas: o código da mesa é o segredo.
-      allow list: if false;
+      // Ninguém varre a lista de mesas: o código da mesa é o segredo. A única
+      // exceção é o super administrador, que precisa ver o sistema inteiro.
+      allow list: if isSuperAdmin();
       allow create: if signedIn() &&
         request.resource.data.gmUid == request.auth.uid &&
         request.resource.data.id == tableId &&
         request.resource.data.code == tableId;
-      allow update: if isGM(tableId) && request.resource.data.gmUid == resource.data.gmUid;
-      allow delete: if false;
+      // Nem o Mestre nem o administrador podem trocar o dono da mesa.
+      allow update: if (isGM(tableId) || isSuperAdmin()) &&
+        request.resource.data.gmUid == resource.data.gmUid;
+      allow delete: if isSuperAdmin();
 
       match /characters/{characterId} {
         allow read: if signedIn();
@@ -54,23 +72,28 @@ service cloud.firestore {
           isGM(tableId) ||
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid', 'updatedAt'])
         );
-        allow delete: if isGM(tableId) || resource.data.ownerUid == request.auth.uid;
+        allow delete: if isGM(tableId) || resource.data.ownerUid == request.auth.uid || isSuperAdmin();
       }
 
       match /npcs/{npcId} {
         allow read: if signedIn();
         allow write: if isGM(tableId);
+        allow delete: if isGM(tableId) || isSuperAdmin();
       }
 
       match /log/{logId} {
         allow read: if signedIn();
         allow create: if signedIn();
-        allow update, delete: if isGM(tableId);
+        allow update: if isGM(tableId);
+        allow delete: if isGM(tableId) || isSuperAdmin();
       }
 
-      // Rolagens secretas do Mestre: ninguém mais lê nem escreve.
+      // Rolagens secretas do Mestre: ninguém mais lê nem escreve. O super
+      // administrador também lê — sem isso não conseguiria varrer a subcoleção
+      // para apagar a mesa inteira.
       match /secretRolls/{rollId} {
         allow read, write: if isGM(tableId);
+        allow read, delete: if isSuperAdmin();
       }
 
       // Pedidos de rolagem: o jogador cria o seu; o Mestre libera ou nega.
@@ -78,7 +101,7 @@ service cloud.firestore {
         allow read: if signedIn();
         allow create: if signedIn() && request.resource.data.requesterUid == request.auth.uid;
         allow update: if isGM(tableId) || resource.data.requesterUid == request.auth.uid;
-        allow delete: if isGM(tableId);
+        allow delete: if isGM(tableId) || isSuperAdmin();
       }
 
       // Tela de jogo: todos leem (a tela de espera é decidida no cliente pelo
@@ -88,17 +111,20 @@ service cloud.firestore {
       match /scene/{sceneId} {
         allow read: if signedIn();
         allow write: if isGM(tableId);
+        allow delete: if isGM(tableId) || isSuperAdmin();
       }
 
       // Biblioteca de mapas e tokens salvos pelo Mestre: só ele usa.
       match /sceneLibrary/{itemId} {
         allow read, write: if isGM(tableId);
+        allow read, delete: if isSuperAdmin();
       }
 
       // Memória de imagens por nome de criatura (bestiário/personalizada): só
       // o Mestre usa, para lembrar a foto da última vez que editou aquele nome.
       match /monsterImages/{nameLower} {
         allow read, write: if isGM(tableId);
+        allow read, delete: if isSuperAdmin();
       }
     }
   }

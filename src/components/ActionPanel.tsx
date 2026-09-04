@@ -5,7 +5,7 @@ import { requestRoll, spendHpOnRoll } from '../lib/rollFlow'
 import { listenMyRollRequests } from '../lib/store'
 import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
 import type { AttributeKey, Character, GameTable, RollRequest } from '../types'
-import { Badge, Button, Input, Select } from './ui'
+import { Badge, Button, Input, Select, TabButton } from './ui'
 
 type Tab = 'teste' | 'ataque' | 'dano' | 'feitico'
 
@@ -102,7 +102,7 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1 border-b border-[color:var(--gold-dark)]">
         {(
           [
             ['teste', '🎲 Teste'],
@@ -111,15 +111,9 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
             ['feitico', '✨ Feitiçaria'],
           ] as [Tab, string][]
         ).map(([key, label]) => (
-          <button
-            key={key}
-            onClick={() => setTab(key)}
-            className={`rounded-full px-3 py-1.5 text-sm ${
-              tab === key ? 'bg-purple-700 text-white' : 'bg-[var(--surface-tab)] text-purple-300/70 hover:bg-[var(--surface-tab-hover)]'
-            }`}
-          >
+          <TabButton key={key} active={tab === key} onClick={() => setTab(key)}>
             {label}
-          </button>
+          </TabButton>
         ))}
       </div>
 

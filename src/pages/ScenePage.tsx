@@ -151,13 +151,16 @@ export function ScenePage() {
     persist({ ...scene, locationLit: !locationLit })
   }
 
-  function addToken(token: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>, opts?: { at?: { x: number; y: number }; onBoard?: boolean }) {
+  function addToken(
+    token: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>,
+    opts?: { at?: { x: number; y: number }; onBoard?: boolean; size?: number },
+  ) {
     const newToken: SceneToken = {
       ...token,
       id: newId(),
       x: opts?.at?.x ?? 0.5,
       y: opts?.at?.y ?? 0.5,
-      size: token.kind === 'boss' ? 0.17 : 0.07,
+      size: opts?.size ?? (token.kind === 'boss' ? 0.17 : 0.07),
       onBoard: opts?.onBoard ?? true,
     }
     persist({ ...scene, tokens: [...scene.tokens, newToken] })
@@ -663,7 +666,10 @@ function SceneControls({
   npcs: NPC[]
   library: SceneLibraryItem[]
   onSetBackground: (url: string) => void
-  onAddToken: (t: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>, opts?: { at?: { x: number; y: number }; onBoard?: boolean }) => void
+  onAddToken: (
+    t: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>,
+    opts?: { at?: { x: number; y: number }; onBoard?: boolean; size?: number },
+  ) => void
   onUpdateToken: (id: string, patch: Partial<SceneToken>) => void
   onRemoveToken: (id: string) => void
   onClear: () => void
@@ -792,7 +798,9 @@ function SceneControls({
           {npcs.map((n) => (
             <span key={n.id} className="flex items-center gap-0.5">
               <button
-                onClick={() => onAddToken({ label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id })}
+                onClick={() =>
+                  onAddToken({ label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id }, { size: n.tokenSize })
+                }
                 className="rounded-full border border-orange-800/50 px-2 py-0.5 text-xs text-orange-200 hover:border-orange-500"
               >
                 + {n.name}
@@ -800,7 +808,10 @@ function SceneControls({
               <button
                 title="Preparar na bandeja em vez de colocar direto no mapa"
                 onClick={() =>
-                  onAddToken({ label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id }, { onBoard: false })
+                  onAddToken(
+                    { label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id },
+                    { onBoard: false, size: n.tokenSize },
+                  )
                 }
                 className="rounded-full border border-orange-800/30 px-1.5 py-0.5 text-xs text-orange-300/70 hover:border-orange-500"
               >

@@ -5,12 +5,14 @@ import { newId } from '../lib/id'
 import { addLogEntry, createNPC, deleteNPC, listenMonsterImages, setMonsterImage, updateCharacter, updateNPC } from '../lib/store'
 import type { Character, GameTable, NPC } from '../types'
 import { PortraitEditor } from './PortraitEditor'
+import { SpecialCreatureForm } from './SpecialCreatureForm'
 import { Badge, Button, Card, Input, Select, SectionTitle } from './ui'
 
 export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs: NPC[]; characters: Character[] }) {
   const [category, setCategory] = useState(BESTIARY_CATEGORIES[0])
   const [bestiaryChoice, setBestiaryChoice] = useState(BESTIARY.find((b) => b.category === BESTIARY_CATEGORIES[0])?.name ?? '')
   const [customName, setCustomName] = useState('')
+  const [creatingSpecial, setCreatingSpecial] = useState(false)
   const [monsterImages, setMonsterImages] = useState<Record<string, string>>({})
 
   useEffect(() => listenMonsterImages(table.id, setMonsterImages), [table.id])
@@ -96,7 +98,7 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
         <p className="text-[11px] text-purple-400/50">
           A foto ao lado é a imagem padrão deste monstro — troque uma vez e toda futura adição já vem com ela.
         </p>
-        <div className="flex items-center gap-2 border-t border-purple-900/30 pt-2">
+        <div className="flex flex-wrap items-center gap-2 border-t border-purple-900/30 pt-2">
           <Input
             value={customName}
             onChange={(e) => setCustomName(e.target.value)}
@@ -104,8 +106,35 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
             className="w-56"
           />
           <Button onClick={addCustom}>Adicionar Personalizada</Button>
+          <span className="mx-1 h-5 w-px bg-[color:var(--gold-dark)]" />
+          <Button variant="primary" onClick={() => setCreatingSpecial(true)}>
+            ✦ Criatura Especial (ficha livre)
+          </Button>
         </div>
+        <p className="text-[11px] text-purple-400/50">
+          Ficha livre é para o que foge das regras — dragões, entidades, titãs: você inventa os campos.
+        </p>
       </Card>
+
+      {creatingSpecial && (
+        <SpecialCreatureForm
+          submitLabel="Criar criatura"
+          onCancel={() => setCreatingSpecial(false)}
+          onSubmit={async (draft) => {
+            await createNPC(table.id, {
+              tableId: table.id,
+              flavor: 'special',
+              sourceLabel: draft.title || 'Criatura especial',
+              visible: false,
+              createdAt: Date.now(),
+              ...draft,
+              // Criatura nova entra em cena com os PV cheios.
+              hp: { current: draft.hp.max, max: draft.hp.max },
+            })
+            setCreatingSpecial(false)
+          }}
+        />
+      )}
 
       <div className="grid gap-3 sm:grid-cols-2">
         {npcs.map((npc) => (
@@ -122,6 +151,7 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
   const [targetId, setTargetId] = useState(characters[0]?.id ?? '')
   const [attackIdx, setAttackIdx] = useState(0)
   const [bonus, setBonus] = useState(0)
+  const [editing, setEditing] = useState(false)
 
   const target = characters.find((c) => c.id === targetId)
   const attack = npc.attacks[attackIdx]
@@ -185,17 +215,52 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
     }
   }
 
+  const isSpecial = npc.flavor === 'special'
+
+  if (editing) {
+    return (
+      <div className="sm:col-span-2">
+        <SpecialCreatureForm
+          initial={npc}
+          submitLabel="Salvar ficha"
+          onCancel={() => setEditing(false)}
+          onSubmit={async (draft) => {
+            await updateNPC(table.id, npc.id, {
+              ...draft,
+              // Mantém o PV atual dentro do novo máximo.
+              hp: { current: Math.min(npc.hp.current, draft.hp.max), max: draft.hp.max },
+              sourceLabel: draft.title || 'Criatura especial',
+            })
+            setEditing(false)
+          }}
+        />
+      </div>
+    )
+  }
+
   return (
-    <Card className="flex flex-col gap-2 p-3">
+    <Card className={`flex flex-col gap-2 p-3 ${isSpecial ? 'sm:col-span-2 border-[color:var(--gold)]/60' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <PortraitEditor url={npc.portraitUrl} name={npc.name} size={40} onSave={savePortrait} />
+          <PortraitEditor url={npc.portraitUrl} name={npc.name} size={isSpecial ? 52 : 40} onSave={savePortrait} />
           <div>
-            <p className="font-semibold text-purple-100">{npc.name}</p>
-            {npc.sourceLabel && <p className="text-xs text-purple-300/50">{npc.sourceLabel}</p>}
+            <p className="flex items-center gap-1.5 font-semibold text-purple-100">
+              {isSpecial && <span className="text-[color:var(--gold)]">✦</span>}
+              {npc.name}
+            </p>
+            {npc.title ? (
+              <p className="font-serif text-xs uppercase tracking-[0.12em] text-[color:var(--gold)]">{npc.title}</p>
+            ) : (
+              npc.sourceLabel && <p className="text-xs text-purple-300/50">{npc.sourceLabel}</p>
+            )}
           </div>
         </div>
-        <div className="flex gap-1">
+        <div className="flex items-center gap-1">
+          {isSpecial && (
+            <button className="text-xs text-purple-300 hover:text-[color:var(--gold)]" onClick={() => setEditing(true)}>
+              editar ficha
+            </button>
+          )}
           <button
             className="text-xs text-purple-400 hover:text-purple-200"
             onClick={() => updateNPC(table.id, npc.id, { visible: !npc.visible })}
@@ -208,6 +273,30 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
           </button>
         </div>
       </div>
+
+      {npc.description && <p className="text-xs leading-relaxed text-purple-200">{npc.description}</p>}
+
+      {(npc.customStats ?? []).length > 0 && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 border-t border-[color:var(--gold-dark)] pt-2 text-xs">
+          {(npc.customStats ?? []).map((s) => (
+            <span key={s.id}>
+              <span className="uppercase tracking-wider text-purple-400">{s.label}: </span>
+              <span className="text-purple-100">{s.value}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
+      {(npc.traits ?? []).length > 0 && (
+        <div className="flex flex-col gap-1 border-t border-[color:var(--gold-dark)] pt-2">
+          {(npc.traits ?? []).map((t) => (
+            <p key={t.id} className="text-xs text-purple-200">
+              <b className="text-[color:var(--gold)]">{t.name}</b>
+              {t.description ? ` — ${t.description}` : ''}
+            </p>
+          ))}
+        </div>
+      )}
 
       <div className="flex items-center gap-2 text-sm text-purple-200">
         <span>Defesa {npc.defense}</span>

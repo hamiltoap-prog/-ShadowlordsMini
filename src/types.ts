@@ -112,6 +112,28 @@ export interface NPCAttack {
   note?: string
 }
 
+/** Característica livre de uma criatura especial: "Sopro de Cinzas", "Voo", etc. */
+export interface NPCTrait {
+  id: string
+  name: string
+  description: string
+}
+
+/** Linha livre de ficha: rótulo + valor, para o que não cabe nos campos fixos. */
+export interface NPCStat {
+  id: string
+  label: string
+  value: string
+}
+
+/** Tamanho da criatura no mapa (fração da largura do tabuleiro). */
+export const CREATURE_SIZES = [
+  { key: 'normal', label: 'Normal', size: 0.07 },
+  { key: 'grande', label: 'Grande', size: 0.11 },
+  { key: 'enorme', label: 'Enorme', size: 0.17 },
+  { key: 'colossal', label: 'Colossal', size: 0.26 },
+] as const
+
 export interface NPC {
   id: string
   tableId: string
@@ -124,6 +146,17 @@ export interface NPC {
   portraitUrl?: string
   visible: boolean
   createdAt: number
+  /** 'special' = ficha livre (dragões, entidades, o que fugir das regras). */
+  flavor?: 'simple' | 'special'
+  /** Título/tipo da criatura especial, ex: "Dragão Ancião das Cinzas". */
+  title?: string
+  description?: string
+  /** Campos livres da ficha, ex: "Envergadura" → "12 metros". */
+  customStats?: NPCStat[]
+  /** Poderes e características próprias, com descrição. */
+  traits?: NPCTrait[]
+  /** Tamanho do ícone no mapa (fração da largura do tabuleiro). */
+  tokenSize?: number
 }
 
 export interface GameTable {

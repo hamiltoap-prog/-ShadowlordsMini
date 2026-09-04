@@ -42,6 +42,9 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   Criaturas Personalizadas** (fichas resumidas do Bestiário ou criadas na hora), rastreador de
   combate, tabelas aleatórias, referência completa das regras, e edição de atributos, PV,
   defesa e moedas de qualquer ficha
+- ✦ **Criatura Especial (ficha livre)**: para o que foge das regras — dragões, entidades,
+  titãs. Título, descrição, ataques com efeito, características próprias, campos inventados na
+  hora ("Envergadura: 40 metros") e tamanho no mapa até colossal. Editável a qualquer momento
 - 🖼️ **Imagens de monstro memorizadas por nome**: edite a foto de uma criatura uma vez e toda
   futura adição do mesmo nome (bestiário ou personalizada) já vem com aquela imagem
 - 🔗 **Links do Google Drive funcionam direto**: cole o link de compartilhamento comum
@@ -52,6 +55,9 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
 - 🛒 Loja liberada pelo Mestre: compras só acontecem quando o grupo está num lugar de comércio
 - 🔗 Entrada de qualquer aparelho: jogador entra com o código da mesa + nome do personagem;
   o Mestre entra com e-mail e senha (com recuperação por e-mail)
+- 🛡️ **Painel de administração** em `/admin`, separado do jogo: quem tem o crachá de super
+  administrador enxerga todas as mesas do sistema, com busca, contagens, renomear, ajustar a
+  loja/aprovação e apagar uma mesa inteira (com tudo que há dentro dela)
 - 💸 100% gratuito: roda no plano gratuito (Spark) do Firebase, sem cartão de crédito
 
 Este projeto **não é comercial** — é distribuído para uso pessoal do grupo, respeitando a
@@ -75,6 +81,11 @@ Não há servidor próprio: o site (estático, em React) conversa diretamente co
   não para dados sensíveis.
 - As regras em `firestore.rules` garantem, do lado do servidor, que jogador não mexe em
   NPCs, na configuração da mesa, na tela de jogo nem enxerga as rolagens secretas do Mestre.
+- O **super administrador** é quem tem um documento em `superAdmins/{uid}`. Esse documento não
+  pode ser criado nem lido pelo app — só pelo Admin SDK, fora do navegador. É ele que libera,
+  nas próprias regras do Firestore, a listagem de todas as mesas e a exclusão de uma mesa.
+  Para promover alguém: descubra o `uid` da conta no Firebase Authentication e crie o
+  documento `superAdmins/<uid>` pelo console do Firebase.
 
 ## Configurar seu próprio Firebase (gratuito, ~5 minutos)
 

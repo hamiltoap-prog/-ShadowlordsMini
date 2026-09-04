@@ -1,63 +1,113 @@
 @import "tailwindcss";
 
+/* ---------------------------------------------------------------------------
+ * Identidade visual: painéis escuros de aço e azul-noite com fios de ouro,
+ * cantos retos e títulos em capitulares — a linguagem de HUD "hextech".
+ *
+ * Dois atalhos fazem o tema inteiro virar de uma vez, sem reescrever classe por
+ * classe em cada componente:
+ *   1) @theme redefine os tokens do Tailwind (raios e fontes);
+ *   2) a rampa "purple" (usada em todo o app) é reapontada para os tons novos.
+ * ------------------------------------------------------------------------- */
+@theme {
+  --font-serif: 'Cinzel', ui-serif, Georgia, 'Times New Roman', serif;
+  --font-sans: 'Barlow', 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+
+  /* Cantos retos: a HUD é feita de placas, não de bolhas. `rounded-full`
+   * continua redondo (peças do mapa, retratos, selos). */
+  --radius-sm: 0px;
+  --radius-md: 1px;
+  --radius-lg: 2px;
+  --radius-xl: 2px;
+  --radius-2xl: 3px;
+  --radius-3xl: 3px;
+  --radius-4xl: 4px;
+}
+
 :root {
   color-scheme: dark;
 
-  /* Superfícies próprias do app (não fazem parte da paleta do Tailwind, então
-   * precisam de variáveis manuais para reagir ao tema). Valores padrão = escuro. */
-  --surface-page: #0b0a10;
-  --surface-page-glow: #1c1730;
-  --surface-card: #151220;
-  --surface-card-hover: #1b1729;
-  --surface-well: #0f0d16;
-  --surface-tab: #1a1626;
-  --surface-tab-hover: #241f33;
-  --surface-tab-active: #302a45;
-  --surface-board: #0d0b13;
-  --die-face: #241a33;
+  /* Ouro da casa */
+  --gold: #c8aa6e;
+  --gold-bright: #f0e6d2;
+  --gold-deep: #785a28;
+  --gold-dark: #463714;
+  --hextech: #0ac8b9;
+
+  /* Superfícies próprias do app (fora da paleta do Tailwind). */
+  --surface-page: #010a13;
+  --surface-page-glow: #0a1c2e;
+  --surface-card: #0a1420;
+  --surface-card-hover: #10202f;
+  --surface-well: #06111c;
+  --surface-tab: #0d1b28;
+  --surface-tab-hover: #142534;
+  --surface-tab-active: #1d3243;
+  --surface-board: #05101a;
+  --die-face: #14283a;
   --card-secret: #1a1408;
-  --card-fail: #1a0d0f;
-  --card-neutral: #150f22;
-  --card-success: #0d1a14;
-  --body-text: #e8e3f0;
-  --scrollbar-track: #131019;
-  --scrollbar-thumb: #3a2f4d;
+  --card-fail: #1c0e10;
+  --card-neutral: #0d1b28;
+  --card-success: #08201a;
+  --body-text: #f0e6d2;
+  --scrollbar-track: #06111c;
+  --scrollbar-thumb: #2b4256;
+
+  /* Rampa "purple" reapontada: texto em pergaminho claro, estruturas em
+   * azul-aço, e o 500/600/700 vira ouro (usado em foco, abas e destaques). */
+  --color-purple-50: #f7f2e6;
+  --color-purple-100: #f0e6d2;
+  --color-purple-200: #cdbe91;
+  --color-purple-300: #a09b8c;
+  --color-purple-400: #8b8778;
+  --color-purple-500: #c8aa6e;
+  --color-purple-600: #a1833f;
+  --color-purple-700: #785a28;
+  --color-purple-800: #1e3040;
+  --color-purple-900: #16293a;
+  --color-purple-950: #0a1420;
 }
 
-/* Modo claro: sobrescreve as superfícies próprias acima e inverte os tons da
- * paleta purple/emerald/red/amber/sky/orange do Tailwind (usadas nas classes
- * já espalhadas pelo app, ex. bg-purple-900/30, text-purple-100). Como o
- * Tailwind v4 gera cada cor como uma variável CSS, isso re-tematiza o app
- * inteiro sem precisar editar componente por componente. */
+/* Modo claro: pergaminho e ouro velho, mantendo a mesma estrutura. */
 :root.light {
   color-scheme: light;
 
-  --surface-page: #f7f6fb;
-  --surface-page-glow: #ece6f7;
-  --surface-card: #ffffff;
-  --surface-card-hover: #f2eef9;
-  --surface-well: #f3f1f8;
-  --surface-tab: #efebf7;
-  --surface-tab-hover: #e6ddf5;
-  --surface-tab-active: #ddd0f0;
-  --surface-board: #efebf7;
-  --die-face: #e6ddf5;
-  --card-secret: #fff7e6;
-  --card-fail: #fdeceb;
-  --card-neutral: #f3eefc;
-  --card-success: #eafbf1;
-  --body-text: #241c33;
-  --scrollbar-track: #ece7f4;
-  --scrollbar-thumb: #cabde0;
+  --gold: #8a6a2f;
+  --gold-bright: #5c4718;
+  --gold-deep: #b39750;
+  --gold-dark: #d8c79a;
+  --hextech: #0a7d78;
 
-  --color-purple-50: #2b1250;
-  --color-purple-100: #1e1033;
-  --color-purple-200: #2a1747;
-  --color-purple-300: #4c3b68;
-  --color-purple-400: #6b5b8a;
-  --color-purple-900: #ece7f7;
-  --color-purple-950: #f6f4fb;
-  --color-black: #f2eff7;
+  --surface-page: #efe9db;
+  --surface-page-glow: #fbf7ec;
+  --surface-card: #fdfaf1;
+  --surface-card-hover: #f5efdf;
+  --surface-well: #f1ebdb;
+  --surface-tab: #eae3d0;
+  --surface-tab-hover: #e0d7bf;
+  --surface-tab-active: #d3c6a6;
+  --surface-board: #e8e1cf;
+  --die-face: #efe7d2;
+  --card-secret: #fdf6e3;
+  --card-fail: #f9e9e6;
+  --card-neutral: #f3eddd;
+  --card-success: #e9f5ec;
+  --body-text: #1e2328;
+  --scrollbar-track: #e6dfcc;
+  --scrollbar-thumb: #bfae87;
+
+  --color-purple-50: #1a1d22;
+  --color-purple-100: #1e2328;
+  --color-purple-200: #3a3a33;
+  --color-purple-300: #57544a;
+  --color-purple-400: #6f6b5e;
+  --color-purple-500: #8a6a2f;
+  --color-purple-600: #9c7f3d;
+  --color-purple-700: #a9803b;
+  --color-purple-800: #d5c9a8;
+  --color-purple-900: #ded3b8;
+  --color-purple-950: #f2ecdc;
+  --color-black: #efe9db;
 
   --color-emerald-200: #14532d;
   --color-emerald-300: #166534;
@@ -91,8 +141,20 @@ body {
   margin: 0;
   background: var(--surface-page);
   color: var(--body-text);
-  font-family: 'Segoe UI', system-ui, -apple-system, Roboto, sans-serif;
+  font-family: var(--font-sans);
   transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+h1,
+h2,
+h3 {
+  letter-spacing: 0.02em;
+}
+
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'] {
+  accent-color: var(--gold);
 }
 
 ::-webkit-scrollbar {
@@ -104,7 +166,17 @@ body {
 }
 ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
-  border-radius: 6px;
+  border: 1px solid var(--surface-page);
+}
+
+/* Placa de HUD: canto chanfrado, como as molduras do jogo. */
+.hud-chamfer {
+  clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
+}
+
+/* Fio de ouro no topo de um painel. */
+.hud-rule {
+  background-image: linear-gradient(90deg, transparent, var(--gold-deep) 15%, var(--gold) 50%, var(--gold-deep) 85%, transparent);
 }
 
 @keyframes roll-in {
@@ -142,10 +214,10 @@ body {
 @keyframes pulse-ring {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(192, 132, 252, 0.5);
+    box-shadow: 0 0 0 0 rgba(200, 170, 110, 0.55);
   }
   50% {
-    box-shadow: 0 0 0 8px rgba(192, 132, 252, 0);
+    box-shadow: 0 0 0 8px rgba(200, 170, 110, 0);
   }
 }
 .animate-pulse-ring {

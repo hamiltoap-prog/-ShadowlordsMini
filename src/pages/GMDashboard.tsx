@@ -8,7 +8,7 @@ import { LogFeed } from '../components/LogFeed'
 import { NpcManager } from '../components/NpcManager'
 import { Portrait } from '../components/Portrait'
 import { ReferenceBrowser } from '../components/ReferenceBrowser'
-import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
+import { Badge, Button, Card, Input, SectionTitle, TabButton } from '../components/ui'
 import { authErrorMessage, changeGMPassword } from '../firebase'
 import { deleteCharacter, listenCharacters, listenNPCs, listenRollRequests, updateTable } from '../lib/store'
 import type { Character, GameTable, NPC } from '../types'
@@ -72,7 +72,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
         </div>
       </Card>
 
-      <div className="flex flex-wrap gap-1.5">
+      <div className="flex flex-wrap gap-1 border-b border-[color:var(--gold-dark)]">
         {(
           [
             ['mesa', `Mesa${pendingCount > 0 ? ` (${pendingCount}!)` : ''}`],
@@ -83,15 +83,14 @@ export function GMDashboard({ table }: { table: GameTable }) {
             ['config', 'Configurações'],
           ] as [Tab, string][]
         ).map(([key, label]) => (
-          <button
+          <TabButton
             key={key}
+            active={tab === key}
             onClick={() => setTab(key)}
-            className={`rounded-full px-3 py-1.5 text-sm ${
-              tab === key ? 'bg-purple-700 text-white' : 'bg-[var(--surface-tab)] text-purple-300/70 hover:bg-[var(--surface-tab-hover)]'
-            } ${key === 'mesa' && pendingCount > 0 && tab !== 'mesa' ? 'animate-pulse-ring' : ''}`}
+            className={key === 'mesa' && pendingCount > 0 && tab !== 'mesa' ? 'text-amber-300' : ''}
           >
             {label}
-          </button>
+          </TabButton>
         ))}
       </div>
 

@@ -321,6 +321,48 @@ export function listenSceneLibrary(tableId: string, cb: (items: SceneLibraryItem
   })
 }
 
+// ---------- Super administração (todas as mesas) ----------
+
+/** Só existe para quem foi marcado como super administrador pelo Admin SDK. */
+export async function isSuperAdmin(uid: string): Promise<boolean> {
+  const snap = await getDoc(doc(requireDb(), 'superAdmins', uid))
+  return snap.exists()
+}
+
+/** Lista de todas as mesas do sistema — negada pelas regras a quem não é admin. */
+export function listenAllTables(cb: (tables: GameTable[]) => void, onError?: (e: Error) => void) {
+  return onSnapshot(
+    query(collection(requireDb(), 'tables'), orderBy('createdAt', 'desc')),
+    (snap) => cb(snap.docs.map((d) => d.data() as GameTable)),
+    (err) => onError?.(err),
+  )
+}
+
+/** Quantos documentos existem em cada parte de uma mesa (visão do admin). */
+export async function countTableContents(tableId: string): Promise<{ characters: number; npcs: number; log: number }> {
+  const [chars, npcs, log] = await Promise.all([
+    getDocs(charactersCol(tableId)),
+    getDocs(npcsCol(tableId)),
+    getDocs(query(logCol(tableId), limit(500))),
+  ])
+  return { characters: chars.size, npcs: npcs.size, log: log.size }
+}
+
+const TABLE_SUBCOLLECTIONS = ['characters', 'npcs', 'log', 'secretRolls', 'rollRequests', 'scene', 'sceneLibrary', 'monsterImages']
+
+/**
+ * Apaga a mesa inteira. O Firestore não apaga subcoleções em cascata, então
+ * varremos cada uma antes de remover o documento da mesa.
+ */
+export async function deleteTableCompletely(tableId: string): Promise<void> {
+  const database = requireDb()
+  for (const sub of TABLE_SUBCOLLECTIONS) {
+    const snap = await getDocs(collection(database, 'tables', tableId, sub))
+    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)))
+  }
+  await deleteDoc(doc(database, 'tables', tableId))
+}
+
 // ---------- Memória de imagens por nome de criatura ----------
 
 export function monsterImagesCol(tableId: string) {

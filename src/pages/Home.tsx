@@ -22,10 +22,20 @@ export function Home() {
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-5 p-6">
-      <div className="mt-6 text-center">
-        <h1 className="font-serif text-4xl text-purple-100">Shadowlords Mesa</h1>
-        <p className="mt-1 text-sm text-purple-300/60">
-          Companheiro digital para o RPG <i>Shadowlords™ Mini System™</i> — jogue com seu grupo ao vivo, converse pelo
+      <div className="mt-8 text-center">
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[0.42em] text-[color:var(--gold-deep)]">
+          Mini System — 3ª Edição
+        </p>
+        <h1 className="font-serif text-4xl font-bold uppercase tracking-[0.14em] text-[color:var(--gold-bright)] sm:text-5xl">
+          Shadowlords
+        </h1>
+        <div className="mx-auto mt-3 flex max-w-xs items-center gap-2">
+          <span className="hud-rule h-px flex-1" />
+          <span className="rotate-45 border border-[color:var(--gold)] p-[3px]" />
+          <span className="hud-rule h-px flex-1" />
+        </div>
+        <p className="mt-3 text-sm text-purple-300">
+          Companheiro digital para jogar ao vivo com seu grupo — fichas, dados e a tela do Mestre. A conversa fica no
           Discord.
         </p>
       </div>
@@ -79,11 +89,14 @@ function MenuCard({ emoji, title, desc, onClick }: { emoji: string; title: strin
   return (
     <button
       onClick={onClick}
-      className="rounded-xl border border-purple-900/40 bg-[var(--surface-card)]/80 p-4 text-left transition hover:border-purple-500 hover:bg-[var(--surface-card-hover)]"
+      className="hud-chamfer group relative border border-[color:var(--gold-dark)] bg-[var(--surface-card)]/85 p-4 text-left transition-all duration-150 hover:border-[color:var(--gold)] hover:bg-[var(--surface-card-hover)] hover:shadow-[0_0_20px_-6px_rgba(200,170,110,0.5)]"
     >
+      <span className="hud-rule pointer-events-none absolute inset-x-0 top-0 h-px opacity-60 transition group-hover:opacity-100" />
       <span className="text-2xl">{emoji}</span>
-      <p className="mt-1 font-semibold text-purple-100">{title}</p>
-      <p className="text-xs text-purple-300/60">{desc}</p>
+      <p className="mt-2 font-serif text-sm font-semibold uppercase tracking-[0.12em] text-[color:var(--gold)] transition group-hover:text-[color:var(--gold-bright)]">
+        {title}
+      </p>
+      <p className="mt-1 text-xs text-purple-300">{desc}</p>
     </button>
   )
 }
