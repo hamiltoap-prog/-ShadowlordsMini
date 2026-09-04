@@ -126,12 +126,18 @@ export interface NPCStat {
   value: string
 }
 
-/** Tamanho da criatura no mapa (fração da largura do tabuleiro). */
+/**
+ * Tamanho da criatura no mapa. `squares` é a medida de verdade — quantos
+ * quadrados da grade a criatura ocupa —, e é o que mantém a proporção entre as
+ * peças quando o Mestre muda a escala do mapa. `size` (fração da largura do
+ * palco) fica como valor de reserva para as peças antigas, feitas antes da
+ * grade existir.
+ */
 export const CREATURE_SIZES = [
-  { key: 'normal', label: 'Normal', size: 0.07 },
-  { key: 'grande', label: 'Grande', size: 0.11 },
-  { key: 'enorme', label: 'Enorme', size: 0.17 },
-  { key: 'colossal', label: 'Colossal', size: 0.26 },
+  { key: 'normal', label: 'Normal', size: 0.07, squares: 1 },
+  { key: 'grande', label: 'Grande', size: 0.11, squares: 2 },
+  { key: 'enorme', label: 'Enorme', size: 0.17, squares: 3 },
+  { key: 'colossal', label: 'Colossal', size: 0.26, squares: 4 },
 ] as const
 
 export interface NPC {
@@ -267,7 +273,10 @@ export interface SceneToken {
   /** Posição relativa ao tabuleiro (0..1), para funcionar em qualquer tela. */
   x: number
   y: number
-  size: number // diâmetro relativo à largura do tabuleiro (ex: 0.07)
+  size: number // diâmetro relativo à largura do palco (ex: 0.07) — legado
+  /** Tamanho em quadrados da grade (1 = criatura média). Quando presente, é
+   *  ele que manda: a peça acompanha a escala do mapa automaticamente. */
+  squares?: number
   /** Quando ligado a uma ficha (personagem ou NPC), mostra o status ao vivo. */
   refType?: 'character' | 'npc'
   refId?: string
@@ -276,6 +285,34 @@ export interface SceneToken {
 }
 
 export type TimeOfDay = 'day' | 'night'
+
+/**
+ * Enquadramento do mapa, definido pelo Mestre e igual para todo mundo.
+ *
+ * O "palco" é o retângulo onde o mapa vive: ele tem uma proporção fixa
+ * (`aspect`), então as coordenadas 0..1 das peças caem exatamente no mesmo
+ * ponto do mapa em qualquer tela — é o que faz a visão do jogador bater com a
+ * do Mestre. Zoom/rotação/deslocamento movem a *imagem dentro* do palco, o que
+ * na prática dá o recorte.
+ */
+export interface SceneMap {
+  /** Rotação da imagem, em graus. */
+  rotation?: number
+  /** Zoom da imagem dentro do palco (1 = ajustada). */
+  zoom?: number
+  /** Deslocamento da imagem, em fração da largura/altura do palco. */
+  offsetX?: number
+  offsetY?: number
+  /** Proporção largura/altura do palco. É o recorte visível do mapa. */
+  aspect?: number
+  /** 'contain' mostra a imagem inteira; 'cover' preenche o palco, recortando. */
+  fit?: 'contain' | 'cover'
+}
+
+/** Proporção do palco quando o Mestre ainda não ajustou nada. */
+export const DEFAULT_STAGE_ASPECT = 16 / 10
+/** Largura do mapa em quadrados quando o Mestre ainda não definiu a escala. */
+export const DEFAULT_GRID_COLUMNS = 20
 
 export interface Scene {
   backgroundUrl: string
@@ -289,6 +326,13 @@ export interface Scene {
    * velas, luz do dia entrando) — independe do dia/noite: útil tanto para um
    * cômodo escuro durante o dia quanto para um salão iluminado à noite. */
   locationLit?: boolean
+  /** Enquadramento do mapa — o mesmo para o Mestre e para os jogadores. */
+  map?: SceneMap
+  /** Escala: quantos quadrados de largura o mapa tem. Um mapa grande usa mais
+   *  quadrados, e as peças ficam menores na mesma proporção. */
+  gridColumns?: number
+  /** Desenha a malha de quadrados por cima do mapa. */
+  showGrid?: boolean
 }
 
 /** Item salvo na biblioteca da mesa: um mapa ou um preset de token (monstro/NPC/chefe). */

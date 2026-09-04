@@ -17,6 +17,13 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   preparadas** deixa surpresas escondidas até serem colocadas no mapa (com o tipo de cada uma
   editável ali mesmo), e a **biblioteca da mesa** guarda mapas (organizados em pastas) e
   criaturas favoritas para reusar depois
+- 🖼️ **Enquadramento do mapa e escala**: o Mestre gira, aproxima, recorta e reposiciona a
+  imagem do mapa, e define a escala em *quadrados de largura* — num mapa grande as peças
+  encolhem juntas, mantendo a proporção entre elas (uma criatura Enorme sempre ocupa 3
+  quadrados). Dá para mostrar a grade e encaixar as peças nela. Tudo isso fica gravado na cena,
+  então **a tela do jogador mostra exatamente o mesmo enquadramento e as mesmas posições**, em
+  qualquer tamanho ou formato de tela; o zoom e o arraste de cada um continuam sendo só a lente
+  pessoal de quem está olhando
 - 🩸 A tela de jogo mostra quando alguém está avariado (< 50% PV) ou crítico (< 10% PV) e quais
   condições afetam cada um — sem nunca expor o número exato de PV aos outros jogadores
 - 🌇🌑 **Dia e noite na tela de jogo**: o Mestre alterna entre dia (tom acinzentado avermelhado)
@@ -185,6 +192,9 @@ banco de dados em qualquer uma delas, já que tudo roda no navegador do jogador.
 6. A **tela de jogo** (`🗺️ Tela de jogo`, abre em outra aba) mostra o mapa e os ícones. O
    Mestre arrasta imagens para dentro — inclusive arrastando direto de outra aba do navegador,
    com Shift para virar o mapa de fundo — e move as peças; os jogadores só acompanham.
+   No painel **Mapa**, "Ajustar mapa" troca o arraste e a roda do mouse para mexerem na imagem
+   de fundo (posição e zoom), e "mais ajustes" abre giro, recorte e proporção. A **escala** diz
+   quantos quadrados o mapa tem de largura e é o que define o tamanho das peças.
 
 Cada navegador também "lembra" a última mesa acessada, então dá para voltar direto pelo
 histórico na sessão seguinte.

@@ -5,6 +5,21 @@ import { useAuth } from '../hooks/useAuth'
 import { firebaseConfigured } from '../firebase'
 import { newId } from '../lib/id'
 import { normalizeImageUrl } from '../lib/imageUrl'
+import {
+  EMPTY_MAP,
+  MAX_GRID_COLUMNS,
+  MAX_MAP_ZOOM,
+  MIN_GRID_COLUMNS,
+  MIN_MAP_ZOOM,
+  fitStage,
+  gridColumns as sceneGridColumns,
+  mapTransform,
+  snapToGrid,
+  squaresForTokenSize,
+  stageAspect,
+  tokenSquares,
+  tokenWidth,
+} from '../lib/sceneGeometry'
 import { resolveTokenStatus } from '../lib/tokenStatus'
 import {
   addSceneLibraryItem,
@@ -17,8 +32,18 @@ import {
   saveScene,
   updateSceneLibraryItem,
 } from '../lib/store'
-import { SCENE_TOKEN_LABELS } from '../types'
-import type { Character, GameTable, NPC, Scene, SceneLibraryItem, SceneToken, SceneTokenKind, TimeOfDay } from '../types'
+import { CREATURE_SIZES, SCENE_TOKEN_LABELS } from '../types'
+import type {
+  Character,
+  GameTable,
+  NPC,
+  Scene,
+  SceneLibraryItem,
+  SceneMap,
+  SceneToken,
+  SceneTokenKind,
+  TimeOfDay,
+} from '../types'
 
 const STAR_POSITIONS = [
   [8, 12], [17, 6], [23, 22], [34, 9], [41, 18], [52, 5], [61, 14], [69, 24],
@@ -46,13 +71,12 @@ const EMPTY_SCENE: Scene = { backgroundUrl: '', tokens: [], revealed: false, upd
  * para o grupo continuar enxergando o mapa e as peças. */
 const DARKNESS_ALPHA = 0.5
 /**
- * Alcance da luz como fração da largura/altura do tabuleiro (e não em px):
- * assim a luz é exatamente a mesma em qualquer tela — o que importa agora que
- * ela decide quais criaturas os jogadores enxergam. Os dois valores diferentes
- * compensam o formato do tabuleiro, deixando a poça de luz redonda na prática.
+ * Alcance da luz como fração da largura do palco (e não em px): assim a poça de
+ * luz é exatamente a mesma em qualquer tela — o que importa agora que ela
+ * decide quais criaturas os jogadores enxergam. O raio vertical é derivado da
+ * proporção do palco, para a poça sair redonda em vez de achatada.
  */
 const LIGHT_RX = 0.24
-const LIGHT_RY = 0.555
 /** Fração do alcance que fica totalmente livre de escuridão. */
 const LIGHT_CLEAR = 0.48
 /** Até onde a luz ainda revela uma criatura para os jogadores. */
@@ -83,16 +107,36 @@ export function ScenePage() {
   const [dragId, setDragId] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
+  /** Tamanho em pixels do palco nesta tela — o palco em si é igual para todos,
+   *  só a quantidade de pixels muda de monitor para monitor. */
+  const [stage, setStage] = useState({ width: 0, height: 0 })
+  /** Modo de ajuste do mapa (só o Mestre): arrastar e a roda passam a mexer na
+   *  imagem de fundo em vez de na lente de quem está olhando. */
+  const [mapEdit, setMapEdit] = useState(false)
+  const [snap, setSnap] = useState(true)
   const [announcement, setAnnouncement] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const boardRef = useRef<HTMLDivElement>(null)
   const viewportRef = useRef<HTMLDivElement>(null)
+  const wrapRef = useRef<HTMLDivElement>(null)
   const localEdit = useRef(false)
   const panDrag = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null)
+  const mapDrag = useRef<{ startX: number; startY: number; offsetX: number; offsetY: number } | null>(null)
+  const aspectProbed = useRef('')
+  // O listener da roda é nativo e não é recriado a cada render; estas refs dão
+  // a ele acesso ao estado atual sem precisar reanexá-lo o tempo todo.
+  const mapEditRef = useRef(false)
+  const sceneRef = useRef<Scene>(EMPTY_SCENE)
+  const persistRef = useRef<(next: Scene) => void>(() => {})
 
   const scene = sceneState ?? EMPTY_SCENE
   const timeOfDay: TimeOfDay = scene.timeOfDay ?? 'day'
   const locationLit = scene.locationLit ?? true
+  const map: SceneMap = { ...EMPTY_MAP, ...scene.map }
+  const aspect = stageAspect(scene)
+  const lightRy = LIGHT_RX * aspect
+  const columns = sceneGridColumns(scene)
+  const rows = Math.max(1, Math.round(columns / aspect))
 
   // Relógio simples para saber se uma fonte de luz de personagem ainda está
   // ativa (lightUntil) — não precisa de precisão de segundo, só reagir a tempo.
@@ -132,6 +176,34 @@ export function ScenePage() {
     }
   }, [tableId])
 
+  // O palco é o maior retângulo com a proporção da cena que cabe no espaço
+  // disponível. Medir aqui (em vez de deixar para o CSS) é o que garante que
+  // 0..1 signifique o mesmo ponto do mapa na tela do Mestre e na de cada
+  // jogador. A janela é medida só na largura, e a altura dela passa a seguir o
+  // palco — assim uma tela alta e estreita não fica com um vazio enorme em
+  // cima e embaixo do mapa.
+  useEffect(() => {
+    const el = wrapRef.current
+    if (!el) return
+    function measure() {
+      const width = el!.getBoundingClientRect().width
+      const maxHeight = Math.max(320, window.innerHeight * 0.74)
+      setStage(fitStage(width, maxHeight, aspect))
+    }
+    measure()
+    const obs = new ResizeObserver(measure)
+    obs.observe(el)
+    window.addEventListener('resize', measure)
+    return () => {
+      obs.disconnect()
+      window.removeEventListener('resize', measure)
+    }
+  }, [aspect, sceneState, table])
+
+  useEffect(() => {
+    mapEditRef.current = isGM && mapEdit
+  }, [isGM, mapEdit])
+
   const persist = useCallback(
     (next: Scene) => {
       setSceneState(next)
@@ -139,6 +211,33 @@ export function ScenePage() {
     },
     [tableId],
   )
+
+  useEffect(() => {
+    sceneRef.current = sceneState ?? EMPTY_SCENE
+    persistRef.current = persist
+  })
+
+  /**
+   * Primeira vez que um mapa entra: o palco assume a proporção da própria
+   * imagem, para ela caber inteira sem faixas pretas. Depois disso o Mestre
+   * manda — não mexemos mais sozinhos.
+   */
+  useEffect(() => {
+    if (!isGM || !scene.backgroundUrl) return
+    if (scene.map?.aspect) return
+    if (aspectProbed.current === scene.backgroundUrl) return
+    aspectProbed.current = scene.backgroundUrl
+    const img = new Image()
+    img.onload = () => {
+      if (!img.naturalWidth || !img.naturalHeight) return
+      persist({ ...scene, map: { ...scene.map, aspect: img.naturalWidth / img.naturalHeight } })
+    }
+    img.src = scene.backgroundUrl
+  }, [isGM, scene, persist])
+
+  function patchMap(patch: Partial<SceneMap>) {
+    persist({ ...scene, map: { ...map, ...patch } })
+  }
 
   function toggleTimeOfDay() {
     const next: TimeOfDay = timeOfDay === 'day' ? 'night' : 'day'
@@ -153,14 +252,18 @@ export function ScenePage() {
 
   function addToken(
     token: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>,
-    opts?: { at?: { x: number; y: number }; onBoard?: boolean; size?: number },
+    opts?: { at?: { x: number; y: number }; onBoard?: boolean; size?: number; squares?: number },
   ) {
+    // O tamanho vem em quadrados: a peça já nasce na escala do mapa atual, e
+    // continua proporcional às outras se o Mestre mudar a escala depois.
+    const squares = opts?.squares ?? (opts?.size ? squaresForTokenSize(opts.size) : token.kind === 'boss' ? 2 : 1)
     const newToken: SceneToken = {
       ...token,
       id: newId(),
       x: opts?.at?.x ?? 0.5,
       y: opts?.at?.y ?? 0.5,
-      size: opts?.size ?? (token.kind === 'boss' ? 0.17 : 0.07),
+      squares,
+      size: Math.min(1, squares / columns),
       onBoard: opts?.onBoard ?? true,
     }
     persist({ ...scene, tokens: [...scene.tokens, newToken] })
@@ -183,23 +286,28 @@ export function ScenePage() {
     }
   }
 
-  // Arrastar tokens (só o Mestre) — a posição relativa já leva em conta o
-  // zoom/pan atual, porque o retângulo do board reflete a tela renderizada.
+  // Arrastar peças (só o Mestre) — a posição é sempre relativa ao palco, então
+  // o mesmo arraste cai no mesmo ponto do mapa em qualquer tela.
   useEffect(() => {
     if (!dragId || !isGM) return
+    function place(base: Scene, clientX: number, clientY: number) {
+      const raw = pointerToRelative(clientX, clientY)
+      return {
+        ...base,
+        tokens: base.tokens.map((t) => {
+          if (t.id !== dragId) return t
+          const pos = snap ? snapToGrid(raw.x, raw.y, tokenSquares(t, columns), columns, aspect) : raw
+          return { ...t, ...pos }
+        }),
+      }
+    }
     function onMove(e: PointerEvent) {
       localEdit.current = true
-      const pos = pointerToRelative(e.clientX, e.clientY)
-      setSceneState((s) => {
-        const base = s ?? EMPTY_SCENE
-        return { ...base, tokens: base.tokens.map((t) => (t.id === dragId ? { ...t, ...pos } : t)) }
-      })
+      setSceneState((s) => place(s ?? EMPTY_SCENE, e.clientX, e.clientY))
     }
     function onUp(e: PointerEvent) {
-      const pos = pointerToRelative(e.clientX, e.clientY)
       setSceneState((s) => {
-        const base = s ?? EMPTY_SCENE
-        const next = { ...base, tokens: base.tokens.map((t) => (t.id === dragId ? { ...t, ...pos } : t)) }
+        const next = place(s ?? EMPTY_SCENE, e.clientX, e.clientY)
         void saveScene(tableId, next).finally(() => {
           localEdit.current = false
         })
@@ -213,7 +321,7 @@ export function ScenePage() {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [dragId, isGM, tableId])
+  }, [dragId, isGM, tableId, snap, columns, aspect])
 
   // Zoom com a roda do mouse (todo mundo pode, é só a visão de cada um).
   // Precisa ser um listener nativo não-passivo para poder cancelar o scroll da página.
@@ -222,6 +330,14 @@ export function ScenePage() {
     if (!el) return
     function onWheel(e: WheelEvent) {
       e.preventDefault()
+      if (mapEditRef.current) {
+        // Ajustando o mapa: a roda muda o zoom da *imagem* dentro do palco.
+        const current = sceneRef.current
+        const base: SceneMap = { ...EMPTY_MAP, ...current.map }
+        const next = Math.min(MAX_MAP_ZOOM, Math.max(MIN_MAP_ZOOM, (base.zoom ?? 1) - e.deltaY * 0.0015))
+        persistRef.current({ ...current, map: { ...base, zoom: Number(next.toFixed(3)) } })
+        return
+      }
       setZoom((z) => Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, z - e.deltaY * 0.0015)))
     }
     el.addEventListener('wheel', onWheel, { passive: false })
@@ -233,16 +349,39 @@ export function ScenePage() {
   // Arrastar o fundo para "andar" pelo mapa (pan). Ignorado se o pointerdown
   // começou em cima de um token (que já usa stopPropagation).
   function onViewportPointerDown(e: React.PointerEvent) {
+    if (isGM && mapEdit) {
+      mapDrag.current = { startX: e.clientX, startY: e.clientY, offsetX: map.offsetX ?? 0, offsetY: map.offsetY ?? 0 }
+      return
+    }
     panDrag.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
   }
   useEffect(() => {
     function onMove(e: PointerEvent) {
+      if (mapDrag.current) {
+        // Move a imagem dentro do palco. Divide pelo tamanho do palco (e pelo
+        // zoom da lente) para o mapa acompanhar o cursor na proporção certa.
+        const { startX, startY, offsetX, offsetY } = mapDrag.current
+        const w = stage.width * zoom || 1
+        const h = stage.height * zoom || 1
+        const current = sceneRef.current
+        persistRef.current({
+          ...current,
+          map: {
+            ...EMPTY_MAP,
+            ...current.map,
+            offsetX: Number((offsetX + (e.clientX - startX) / w).toFixed(4)),
+            offsetY: Number((offsetY + (e.clientY - startY) / h).toFixed(4)),
+          },
+        })
+        return
+      }
       if (!panDrag.current) return
       const { startX, startY, panX, panY } = panDrag.current
       setPan({ x: panX + (e.clientX - startX), y: panY + (e.clientY - startY) })
     }
     function onUp() {
       panDrag.current = null
+      mapDrag.current = null
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
@@ -250,7 +389,7 @@ export function ScenePage() {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [])
+  }, [stage.width, stage.height, zoom])
 
   /** Aceita imagens arrastadas de outra aba/página (URL) direto no tabuleiro. */
   function onDrop(e: React.DragEvent) {
@@ -296,7 +435,7 @@ export function ScenePage() {
     if (t.kind !== 'monster' && t.kind !== 'boss') return false
     return !litTokens.some((l) => {
       const dx = (t.x - l.x) / (LIGHT_RX * LIGHT_REVEAL)
-      const dy = (t.y - l.y) / (LIGHT_RY * LIGHT_REVEAL)
+      const dy = (t.y - l.y) / (lightRy * LIGHT_REVEAL)
       return dx * dx + dy * dy <= 1
     })
   }
@@ -306,8 +445,8 @@ export function ScenePage() {
   // cenário e as peças fora do alcance da luz — só com bem menos nitidez.
   // As camadas ficam sempre montadas e só mudam de opacidade, para a escuridão
   // entrar e sair junto com a transição do céu em vez de aparecer de estalo.
-  const darkEllipse = `${(LIGHT_RX * 100).toFixed(2)}% ${(LIGHT_RY * 100).toFixed(2)}%`
-  const glowEllipse = `${(LIGHT_RX * GLOW_SCALE * 100).toFixed(2)}% ${(LIGHT_RY * GLOW_SCALE * 100).toFixed(2)}%`
+  const darkEllipse = `${(LIGHT_RX * 100).toFixed(2)}% ${(lightRy * 100).toFixed(2)}%`
+  const glowEllipse = `${(LIGHT_RX * GLOW_SCALE * 100).toFixed(2)}% ${(lightRy * GLOW_SCALE * 100).toFixed(2)}%`
   const darknessBackground = [
     ...litTokens.map(
       (t) =>
@@ -332,8 +471,8 @@ export function ScenePage() {
           <h1 className="font-serif text-xl text-purple-100">Tela de Jogo — {table.name}</h1>
           <p className="text-xs text-purple-300/50">
             {isGM
-              ? 'Arraste imagens (Shift = vira o mapa de fundo). Role o mouse para zoom, arraste o fundo para navegar.'
-              : 'Role o mouse para zoom e arraste o fundo para navegar — isso é só da sua tela.'}
+              ? 'Arraste imagens (Shift = vira o mapa de fundo). Arraste as peças para movê-las; a roda dá zoom na sua tela. Use "Ajustar mapa" para enquadrar o cenário.'
+              : 'Você vê exatamente o enquadramento do Mestre. A roda do mouse e o arraste são só a sua lente — não movem nada para os outros.'}
           </p>
         </div>
         {isGM && (
@@ -366,6 +505,21 @@ export function ScenePage() {
         </div>
       )}
 
+      {isGM && !showWaitingScreen && (
+        <MapFrameControls
+          scene={scene}
+          map={map}
+          columns={columns}
+          aspect={aspect}
+          mapEdit={mapEdit}
+          snap={snap}
+          onToggleMapEdit={() => setMapEdit((v) => !v)}
+          onToggleSnap={() => setSnap((v) => !v)}
+          onPatchMap={patchMap}
+          onPatchScene={(patch) => persist({ ...scene, ...patch })}
+        />
+      )}
+
       {showWaitingScreen ? (
         <div className="flex min-h-[60vh] flex-1 flex-col items-center justify-center gap-3 rounded-xl border border-purple-900/50 bg-[var(--surface-board)] text-center">
           <span className="text-4xl">🕯️</span>
@@ -373,12 +527,14 @@ export function ScenePage() {
           <p className="text-xs text-purple-400/50">A tela vai aparecer automaticamente assim que ele revelar.</p>
         </div>
       ) : (
+        <div ref={wrapRef} className="w-full">
         <div
           ref={viewportRef}
           onPointerDown={onViewportPointerDown}
           onDrop={onDrop}
           onDragOver={(e) => isGM && e.preventDefault()}
-          className="relative min-h-[60vh] flex-1 cursor-grab overflow-hidden rounded-xl border border-purple-900/50 bg-[var(--surface-board)] active:cursor-grabbing"
+          style={{ height: stage.height || undefined }}
+          className="relative min-h-[280px] cursor-grab overflow-hidden rounded-xl border border-purple-900/50 bg-[var(--surface-board)] active:cursor-grabbing"
         >
           {/* Tom ambiente de dia/noite — não acompanha o zoom/pan, é a "luz do céu". */}
           <div
@@ -429,56 +585,85 @@ export function ScenePage() {
             </button>
           </div>
 
+          {/* Lente de cada um (zoom/arraste), por fora do palco: mexer nela não
+              muda o enquadramento que os outros veem. */}
           <div
-            ref={boardRef}
-            className="absolute inset-0"
-            style={{
-              transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
-              transformOrigin: 'center center',
-              backgroundImage: scene.backgroundUrl ? `url(${scene.backgroundUrl})` : undefined,
-              backgroundSize: 'contain',
-              backgroundPosition: 'center',
-              backgroundRepeat: 'no-repeat',
-            }}
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`, transformOrigin: 'center center' }}
           >
-            {!scene.backgroundUrl && (
-              <p className="absolute inset-0 flex items-center justify-center text-sm text-purple-400/40">
-                {isGM ? 'Solte a imagem do mapa aqui (com Shift) ou use a biblioteca abaixo.' : 'O Mestre ainda não abriu um mapa.'}
-              </p>
-            )}
-
-            {visibleTokens.map((t) => (
-              <SceneTokenView
-                key={t.id}
-                token={t}
-                isGM={isGM}
-                hiddenFromPlayers={isGM && hiddenInTheDark(t)}
-                characters={characters}
-                npcs={npcs}
-                onPointerDown={(e) => {
-                  if (!isGM) return
-                  e.preventDefault()
-                  e.stopPropagation()
-                  setDragId(t.id)
-                }}
-              />
-            ))}
-
+            {/* O palco: retângulo de proporção fixa, igual em todas as telas. */}
             <div
-              className="pointer-events-none absolute inset-0 z-[3] transition-opacity duration-[2000ms] ease-in-out"
-              style={{ backgroundImage: darknessBackground, opacity: locationLit ? 0 : 1 }}
-            />
-            {lightGlowBackground && (
+              ref={boardRef}
+              data-stage=""
+              className="relative overflow-hidden bg-[var(--surface-board)] shadow-[0_0_0_1px_rgba(200,170,110,0.25)]"
+              style={{ width: stage.width || undefined, height: stage.height || undefined }}
+            >
+              {scene.backgroundUrl ? (
+                <img
+                  src={scene.backgroundUrl}
+                  alt=""
+                  data-map=""
+                  draggable={false}
+                  className="pointer-events-none absolute inset-0 h-full w-full select-none"
+                  style={{ objectFit: map.fit ?? 'contain', transform: mapTransform(map), transformOrigin: 'center center' }}
+                />
+              ) : (
+                <p className="absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-purple-400/40">
+                  {isGM ? 'Solte a imagem do mapa aqui (com Shift) ou use a biblioteca abaixo.' : 'O Mestre ainda não abriu um mapa.'}
+                </p>
+              )}
+
+              {scene.showGrid && (
+                <div
+                  data-grid=""
+                  className="pointer-events-none absolute inset-0 z-[2]"
+                  style={{
+                    backgroundImage:
+                      'linear-gradient(to right, rgba(200,170,110,0.28) 1px, transparent 1px), linear-gradient(to bottom, rgba(200,170,110,0.28) 1px, transparent 1px)',
+                    backgroundSize: `${100 / columns}% ${100 / rows}%`,
+                  }}
+                />
+              )}
+
+              {visibleTokens.map((t) => (
+                <SceneTokenView
+                  key={t.id}
+                  token={t}
+                  width={tokenWidth(t, columns)}
+                  isGM={isGM}
+                  hiddenFromPlayers={isGM && hiddenInTheDark(t)}
+                  characters={characters}
+                  npcs={npcs}
+                  onPointerDown={(e) => {
+                    if (!isGM || mapEdit) return
+                    e.preventDefault()
+                    e.stopPropagation()
+                    setDragId(t.id)
+                  }}
+                />
+              ))}
+
               <div
-                className="pointer-events-none absolute inset-0 z-[4] transition-opacity duration-[2000ms] ease-in-out"
-                style={{
-                  backgroundImage: lightGlowBackground,
-                  mixBlendMode: 'screen',
-                  opacity: locationLit ? 0 : 1,
-                }}
+                className="pointer-events-none absolute inset-0 z-[3] transition-opacity duration-[2000ms] ease-in-out"
+                style={{ backgroundImage: darknessBackground, opacity: locationLit ? 0 : 1 }}
               />
-            )}
+              {lightGlowBackground && (
+                <div
+                  className="pointer-events-none absolute inset-0 z-[4] transition-opacity duration-[2000ms] ease-in-out"
+                  style={{
+                    backgroundImage: lightGlowBackground,
+                    mixBlendMode: 'screen',
+                    opacity: locationLit ? 0 : 1,
+                  }}
+                />
+              )}
+
+              {isGM && mapEdit && (
+                <div className="pointer-events-none absolute inset-0 z-[7] border-2 border-dashed border-[color:var(--gold)]/70" />
+              )}
+            </div>
           </div>
+        </div>
         </div>
       )}
 
@@ -526,6 +711,7 @@ export function ScenePage() {
           tableId={tableId}
           gmUid={table.gmUid}
           scene={scene}
+          columns={columns}
           characters={characters}
           npcs={npcs}
           library={library}
@@ -537,6 +723,211 @@ export function ScenePage() {
         />
       )}
     </div>
+  )
+}
+
+/**
+ * Controles de enquadramento e escala do mapa (só o Mestre).
+ *
+ * Tudo aqui é gravado na cena, então o que o Mestre ajusta é exatamente o que
+ * os jogadores passam a ver — inclusive a proporção do palco, que é o recorte.
+ */
+function MapFrameControls({
+  scene,
+  map,
+  columns,
+  aspect,
+  mapEdit,
+  snap,
+  onToggleMapEdit,
+  onToggleSnap,
+  onPatchMap,
+  onPatchScene,
+}: {
+  scene: Scene
+  map: SceneMap
+  columns: number
+  aspect: number
+  mapEdit: boolean
+  snap: boolean
+  onToggleMapEdit: () => void
+  onToggleSnap: () => void
+  onPatchMap: (patch: Partial<SceneMap>) => void
+  onPatchScene: (patch: Partial<Scene>) => void
+}) {
+  const [open, setOpen] = useState(false)
+
+  /**
+   * Um quarto de volta gira a imagem e vira o palco junto — sem isso o mapa
+   * deitado sobraria para fora de um palco que continuou em pé.
+   */
+  function quarterTurn(delta: number) {
+    onPatchMap({ rotation: ((map.rotation ?? 0) + delta + 360) % 360, aspect: Number((1 / aspect).toFixed(4)) })
+  }
+
+  /** Deixa o palco com a proporção da imagem, já contando a rotação. */
+  function fitStageToImage() {
+    if (!scene.backgroundUrl) return
+    const img = new Image()
+    img.onload = () => {
+      if (!img.naturalWidth || !img.naturalHeight) return
+      const quarterTurn = Math.abs(Math.round((map.rotation ?? 0) / 90)) % 2 === 1
+      const natural = img.naturalWidth / img.naturalHeight
+      onPatchMap({ aspect: Number((quarterTurn ? 1 / natural : natural).toFixed(4)), zoom: 1, offsetX: 0, offsetY: 0 })
+    }
+    img.src = scene.backgroundUrl
+  }
+
+  return (
+    <Card className="flex flex-col gap-2 p-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <SectionTitle>Mapa</SectionTitle>
+        <Button
+          variant={mapEdit ? 'primary' : 'secondary'}
+          onClick={onToggleMapEdit}
+          className="text-xs"
+          title="Enquanto ligado, arrastar move o mapa e a roda dá zoom nele"
+        >
+          {mapEdit ? '🖐 Ajustando o mapa — clique para sair' : '🖐 Ajustar mapa'}
+        </Button>
+        <label className="flex items-center gap-1.5 text-xs text-purple-200">
+          <input type="checkbox" checked={Boolean(scene.showGrid)} onChange={(e) => onPatchScene({ showGrid: e.target.checked })} />
+          Mostrar grade
+        </label>
+        <label className="flex items-center gap-1.5 text-xs text-purple-200">
+          <input type="checkbox" checked={snap} onChange={onToggleSnap} />
+          Encaixar peças na grade
+        </label>
+        <button className="text-xs text-purple-400 hover:text-purple-100" onClick={() => setOpen((v) => !v)}>
+          {open ? 'esconder ajustes ▲' : 'mais ajustes ▼'}
+        </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2 text-xs text-purple-200">
+        <span className="uppercase tracking-[0.14em] text-purple-400/60">Escala</span>
+        <input
+          type="range"
+          min={MIN_GRID_COLUMNS}
+          max={MAX_GRID_COLUMNS}
+          value={columns}
+          onChange={(e) => onPatchScene({ gridColumns: Number(e.target.value) })}
+          className="w-40"
+        />
+        <Input
+          type="number"
+          min={MIN_GRID_COLUMNS}
+          max={MAX_GRID_COLUMNS}
+          value={columns}
+          onChange={(e) => onPatchScene({ gridColumns: Number(e.target.value) })}
+          style={{ width: '4.5rem' }}
+        />
+        <span className="text-purple-300/60">quadrados de largura — quanto maior o mapa, menores ficam as peças</span>
+      </div>
+
+      {mapEdit && (
+        <p className="text-xs text-[color:var(--gold)]">
+          Arraste o mapa para reposicionar e use a roda do mouse para aproximar. As peças ficam travadas enquanto isso.
+        </p>
+      )}
+
+      {open && (
+        <div className="flex flex-col gap-2 border-t border-purple-900/30 pt-2 text-xs text-purple-200">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-20 uppercase tracking-[0.14em] text-purple-400/60">Girar</span>
+            <Button className="text-xs" onClick={() => quarterTurn(-90)}>
+              ⟲ 90°
+            </Button>
+            <Button className="text-xs" onClick={() => quarterTurn(90)}>
+              ⟳ 90°
+            </Button>
+            <input
+              type="range"
+              min={-180}
+              max={180}
+              value={map.rotation ?? 0}
+              onChange={(e) => onPatchMap({ rotation: Number(e.target.value) })}
+              className="w-40"
+            />
+            <span className="w-12 tabular-nums">{Math.round(map.rotation ?? 0)}°</span>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-20 uppercase tracking-[0.14em] text-purple-400/60">Tamanho</span>
+            <input
+              type="range"
+              min={MIN_MAP_ZOOM * 100}
+              max={MAX_MAP_ZOOM * 100}
+              value={Math.round((map.zoom ?? 1) * 100)}
+              onChange={(e) => onPatchMap({ zoom: Number(e.target.value) / 100 })}
+              className="w-40"
+            />
+            <span className="w-14 tabular-nums">{Math.round((map.zoom ?? 1) * 100)}%</span>
+            <select
+              value={map.fit ?? 'contain'}
+              onChange={(e) => onPatchMap({ fit: e.target.value as 'contain' | 'cover' })}
+              className="rounded border border-purple-900/50 bg-[var(--surface-well)] px-1.5 py-1 text-xs text-purple-50"
+            >
+              <option value="contain">Imagem inteira</option>
+              <option value="cover">Preencher (recorta as bordas)</option>
+            </select>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-20 uppercase tracking-[0.14em] text-purple-400/60">Recorte</span>
+            <span className="text-purple-300/60">
+              proporção {aspect.toFixed(2)}:1 — o palco é a área que os jogadores enxergam
+            </span>
+            <Button className="text-xs" onClick={fitStageToImage} disabled={!scene.backgroundUrl}>
+              Usar a proporção da imagem
+            </Button>
+            {(
+              [
+                ['16:9', 16 / 9],
+                ['4:3', 4 / 3],
+                ['1:1', 1],
+                ['3:4', 3 / 4],
+              ] as [string, number][]
+            ).map(([label, value]) => (
+              <button
+                key={label}
+                onClick={() => onPatchMap({ aspect: value })}
+                className={`rounded-full border px-2 py-0.5 ${
+                  Math.abs(aspect - value) < 0.01
+                    ? 'border-[color:var(--gold)] text-[color:var(--gold-bright)]'
+                    : 'border-purple-800/50 text-purple-300/70 hover:border-purple-500'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+            <input
+              type="range"
+              min={50}
+              max={250}
+              value={Math.round(aspect * 100)}
+              onChange={(e) => onPatchMap({ aspect: Number(e.target.value) / 100 })}
+              className="w-32"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-20 uppercase tracking-[0.14em] text-purple-400/60">Posição</span>
+            <span className="tabular-nums text-purple-300/60">
+              x {((map.offsetX ?? 0) * 100).toFixed(0)}% · y {((map.offsetY ?? 0) * 100).toFixed(0)}%
+            </span>
+            <Button className="text-xs" onClick={() => onPatchMap({ offsetX: 0, offsetY: 0 })}>
+              Centralizar
+            </Button>
+            <Button
+              className="text-xs"
+              onClick={() => onPatchMap({ rotation: 0, zoom: 1, offsetX: 0, offsetY: 0, fit: 'contain' })}
+            >
+              Desfazer todos os ajustes
+            </Button>
+          </div>
+        </div>
+      )}
+    </Card>
   )
 }
 
@@ -556,6 +947,7 @@ function SceneTokenThumb({ token }: { token: SceneToken }) {
 
 function SceneTokenView({
   token: t,
+  width,
   isGM,
   hiddenFromPlayers = false,
   characters,
@@ -563,6 +955,8 @@ function SceneTokenView({
   onPointerDown,
 }: {
   token: SceneToken
+  /** Diâmetro como fração da largura do palco, já na escala do mapa. */
+  width: number
   isGM: boolean
   /** Só o Mestre está vendo esta criatura: ela está no escuro para os jogadores. */
   hiddenFromPlayers?: boolean
@@ -582,6 +976,7 @@ function SceneTokenView({
   return (
     <div
       onPointerDown={onPointerDown}
+      data-token={t.label}
       className={`absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-full ${
         isBoss ? 'ring-[5px] animate-boss-glow' : 'ring-2'
       } ${KIND_STYLE[t.kind]} ${statusRing} ${isGM ? 'cursor-grab active:cursor-grabbing' : ''} ${
@@ -590,7 +985,7 @@ function SceneTokenView({
       style={{
         left: `${t.x * 100}%`,
         top: `${t.y * 100}%`,
-        width: `${t.size * 100}%`,
+        width: `${width * 100}%`,
         aspectRatio: '1 / 1',
       }}
       title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${hiddenFromPlayers ? ' — no escuro: os jogadores não veem' : ''}${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
@@ -650,6 +1045,7 @@ function SceneControls({
   tableId,
   gmUid,
   scene,
+  columns,
   characters,
   npcs,
   library,
@@ -662,13 +1058,15 @@ function SceneControls({
   tableId: string
   gmUid: string
   scene: Scene
+  /** Escala atual do mapa, em quadrados de largura. */
+  columns: number
   characters: Character[]
   npcs: NPC[]
   library: SceneLibraryItem[]
   onSetBackground: (url: string) => void
   onAddToken: (
     t: Omit<SceneToken, 'id' | 'x' | 'y' | 'size'>,
-    opts?: { at?: { x: number; y: number }; onBoard?: boolean; size?: number },
+    opts?: { at?: { x: number; y: number }; onBoard?: boolean; size?: number; squares?: number },
   ) => void
   onUpdateToken: (id: string, patch: Partial<SceneToken>) => void
   onRemoveToken: (id: string) => void
@@ -799,7 +1197,10 @@ function SceneControls({
             <span key={n.id} className="flex items-center gap-0.5">
               <button
                 onClick={() =>
-                  onAddToken({ label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id }, { size: n.tokenSize })
+                  onAddToken(
+                    { label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id },
+                    { squares: squaresForTokenSize(n.tokenSize) },
+                  )
                 }
                 className="rounded-full border border-orange-800/50 px-2 py-0.5 text-xs text-orange-200 hover:border-orange-500"
               >
@@ -810,7 +1211,7 @@ function SceneControls({
                 onClick={() =>
                   onAddToken(
                     { label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id },
-                    { onBoard: false, size: n.tokenSize },
+                    { onBoard: false, squares: squaresForTokenSize(n.tokenSize) },
                   )
                 }
                 className="rounded-full border border-orange-800/30 px-1.5 py-0.5 text-xs text-orange-300/70 hover:border-orange-500"
@@ -839,16 +1240,34 @@ function SceneControls({
                     </option>
                   ))}
                 </select>
-                <label className="flex items-center gap-1">
-                  tamanho
+                <label className="flex items-center gap-1" title="Tamanho em quadrados da grade">
+                  quadrados
                   <input
-                    type="range"
-                    min={3}
-                    max={30}
-                    value={Math.round(t.size * 100)}
-                    onChange={(e) => onUpdateToken(t.id, { size: Number(e.target.value) / 100 })}
+                    type="number"
+                    min={0.5}
+                    max={12}
+                    step={0.5}
+                    value={tokenSquares(t, columns)}
+                    onChange={(e) => onUpdateToken(t.id, { squares: Math.max(0.5, Number(e.target.value)) })}
+                    className="w-14 rounded border border-purple-900/50 bg-[var(--surface-well)] px-1 py-0.5 text-xs text-purple-50"
                   />
                 </label>
+                <span className="flex gap-1">
+                  {CREATURE_SIZES.map((c) => (
+                    <button
+                      key={c.key}
+                      title={`${c.label} — ${c.squares} quadrado${c.squares > 1 ? 's' : ''}`}
+                      onClick={() => onUpdateToken(t.id, { squares: c.squares })}
+                      className={`rounded-full border px-1.5 py-0.5 text-[10px] ${
+                        tokenSquares(t, columns) === c.squares
+                          ? 'border-[color:var(--gold)] text-[color:var(--gold-bright)]'
+                          : 'border-purple-800/50 text-purple-300/60 hover:border-purple-500'
+                      }`}
+                    >
+                      {c.label}
+                    </button>
+                  ))}
+                </span>
                 <button className="text-red-400 hover:text-red-200" onClick={() => onRemoveToken(t.id)}>
                   remover
                 </button>
