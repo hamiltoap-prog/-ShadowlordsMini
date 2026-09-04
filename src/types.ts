@@ -180,6 +180,58 @@ export interface GameTable {
   shopOpen: boolean
   /** Quando ligado, toda rolagem de jogador precisa da aprovação do Mestre. */
   requireApproval: boolean
+  /** Quando ligado, cada jogador arrasta a peça do próprio personagem na tela
+   *  de jogo. As peças de NPCs, monstros e chefes continuam só com o Mestre. */
+  playersMoveTokens?: boolean
+  /** Fome e sede do grupo. Vive na mesa (e não na cena) porque atravessa os
+   *  mapas: o grupo continua com fome ao mudar de cenário. */
+  survival?: SurvivalState
+}
+
+/**
+ * Uma das duas trilhas de privação (fome ou sede).
+ *
+ * `supply` são os quartos do "gráfico de pizza": o quanto o grupo ainda tem de
+ * comida ou de água. `lastAt` é quando comeram/beberam pela última vez — a
+ * barra desce sozinha a partir dele, em tempo real, até zerar.
+ */
+export interface SurvivalTrack {
+  /** Quartos de suprimento restantes (0 a 4). */
+  supply: number
+  /** Minutos de tempo real até a barra zerar depois de comer/beber. */
+  intervalMinutes: number
+  /** Quando o grupo comeu/bebeu pela última vez (ms). */
+  lastAt: number
+  /** Último instante em que a privação tirou PV do grupo (ms). 0 = nenhum. */
+  lastDamageAt?: number
+}
+
+export interface SurvivalState {
+  enabled: boolean
+  hunger: SurvivalTrack
+  thirst: SurvivalTrack
+  /** Minutos entre cada perda de PV depois que uma barra zera. */
+  damageMinutes: number
+  /** PV perdidos por vez. */
+  damagePerTick: number
+  /** Quem faz parte do grupo: só estes sofrem fome, sede e a perda de PV. */
+  partyIds: string[]
+}
+
+export const MAX_SUPPLY = 4
+export const HUNGER_CONDITION = 'Faminto'
+export const THIRST_CONDITION = 'Desidratado'
+
+export function emptySurvival(): SurvivalState {
+  const now = Date.now()
+  return {
+    enabled: false,
+    hunger: { supply: MAX_SUPPLY, intervalMinutes: 240, lastAt: now },
+    thirst: { supply: MAX_SUPPLY, intervalMinutes: 120, lastAt: now },
+    damageMinutes: 15,
+    damagePerTick: 1,
+    partyIds: [],
+  }
 }
 
 export type LogKind =
@@ -309,6 +361,34 @@ export interface SceneMap {
   fit?: 'contain' | 'cover'
 }
 
+/**
+ * Névoa de guerra. A malha é sempre `cols` de largura por `rows` de altura, e
+ * `cells` guarda um caractere por célula ('1' = revelada). Guardar a malha
+ * inteira como texto mantém o documento pequeno e o desenho simples — a borda
+ * suave é feita no desenho, não nos dados.
+ */
+export interface SceneFog {
+  enabled: boolean
+  cols: number
+  rows: number
+  /** cols*rows caracteres, '0' (escondido) ou '1' (revelado), linha a linha. */
+  cells: string
+}
+
+/** Marcação rápida no mapa ("olhem aqui"), que some sozinha depois de alguns segundos. */
+export interface ScenePing {
+  id: string
+  x: number
+  y: number
+  label: string
+  at: number
+}
+
+/** Largura da malha da névoa. A altura sai da proporção do palco. */
+export const FOG_COLS = 56
+/** Quantos segundos uma marcação fica visível. */
+export const PING_LIFETIME_MS = 4000
+
 /** Proporção do palco quando o Mestre ainda não ajustou nada. */
 export const DEFAULT_STAGE_ASPECT = 16 / 10
 /** Largura do mapa em quadrados quando o Mestre ainda não definiu a escala. */
@@ -333,6 +413,8 @@ export interface Scene {
   gridColumns?: number
   /** Desenha a malha de quadrados por cima do mapa. */
   showGrid?: boolean
+  /** Névoa de guerra: o que o grupo já explorou. */
+  fog?: SceneFog
 }
 
 /** Item salvo na biblioteca da mesa: um mapa ou um preset de token (monstro/NPC/chefe). */

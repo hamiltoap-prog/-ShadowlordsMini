@@ -24,6 +24,19 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   então **a tela do jogador mostra exatamente o mesmo enquadramento e as mesmas posições**, em
   qualquer tamanho ou formato de tela; o zoom e o arraste de cada um continuam sendo só a lente
   pessoal de quem está olhando
+- 🌫️ **Névoa de guerra** com borda em degradê: o Mestre pinta o que o grupo já explorou e o
+  resto some suavemente (nada de recorte de tesoura). Criaturas em área não revelada nem
+  aparecem para os jogadores — cada um continua vendo a própria peça
+- 📏 **Régua** (arraste de um ponto ao outro e leia a distância em quadrados) e **marcação**
+  (Alt + clique põe um sinal pulsante no mapa que a mesa toda vê por alguns segundos)
+- ✋ **Jogadores movem a própria peça** quando o Mestre libera na tela de jogo — cada um só
+  arrasta a peça ligada à própria ficha; NPCs, monstros e chefes continuam só com o Mestre
+- 🍖💧 **Fome e sede do grupo** num HUD fixo na tela de jogo: dois gráficos de pizza com o
+  estoque de comida e de água (quatro quartos cada) e as barras que descem em tempo real. O
+  Mestre marca **quem faz parte do grupo**, define quanto tempo cada refeição dura e, quando
+  uma barra zera, o sistema aplica sozinho a condição (Faminto/Desidratado) e passa a tirar PV
+  no ritmo que ele escolheu. Clicar no gráfico gasta um quarto do estoque e enche a barra de
+  volta; o estoque pode ser reabastecido a qualquer momento
 - 🩸 A tela de jogo mostra quando alguém está avariado (< 50% PV) ou crítico (< 10% PV) e quais
   condições afetam cada um — sem nunca expor o número exato de PV aos outros jogadores
 - 🌇🌑 **Dia e noite na tela de jogo**: o Mestre alterna entre dia (tom acinzentado avermelhado)
@@ -192,9 +205,11 @@ banco de dados em qualquer uma delas, já que tudo roda no navegador do jogador.
 6. A **tela de jogo** (`🗺️ Tela de jogo`, abre em outra aba) mostra o mapa e os ícones. O
    Mestre arrasta imagens para dentro — inclusive arrastando direto de outra aba do navegador,
    com Shift para virar o mapa de fundo — e move as peças; os jogadores só acompanham.
-   No painel **Mapa**, "Ajustar mapa" troca o arraste e a roda do mouse para mexerem na imagem
-   de fundo (posição e zoom), e "mais ajustes" abre giro, recorte e proporção. A **escala** diz
-   quantos quadrados o mapa tem de largura e é o que define o tamanho das peças.
+   A barra de **ferramentas** escolhe o que o arraste faz: mover peças e navegar, medir com a
+   régua, ajustar o mapa (posição e zoom da imagem de fundo) ou pintar a névoa de guerra. Em
+   "mais ajustes" ficam giro, recorte e proporção. A **escala** diz quantos quadrados o mapa tem
+   de largura e é o que define o tamanho das peças. **Alt + clique** marca um ponto para todos.
+   O botão **🍖 Fome e sede** abre o controle das provisões e de quem está no grupo.
 
 Cada navegador também "lembra" a última mesa acessada, então dá para voltar direto pelo
 histórico na sessão seguinte.

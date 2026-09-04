@@ -107,10 +107,30 @@ service cloud.firestore {
       // Tela de jogo: todos leem (a tela de espera é decidida no cliente pelo
       // campo `revealed` — negar a leitura no Firestore mataria o listener em
       // tempo real do jogador, que não se reconecta sozinho quando o Mestre
-      // revela depois). Só o Mestre escreve.
+      // revela depois). Só o Mestre escreve...
+      //
+      // ...com uma exceção: quando o Mestre liga `playersMoveTokens` na mesa,
+      // os jogadores passam a mover a peça do próprio personagem. A regra não
+      // consegue olhar peça a peça dentro do array, então ela limita o estrago
+      // ao que interessa — a escrita só pode tocar em `tokens`/`updatedAt`, e
+      // nada de mapa, névoa, luz ou revelação da cena. Quem decide se isso vale
+      // é o Mestre, e o interruptor é dele; o cliente ainda só deixa arrastar a
+      // peça do próprio personagem.
       match /scene/{sceneId} {
         allow read: if signedIn();
         allow write: if isGM(tableId);
+        allow update: if signedIn() &&
+          tableData(tableId).playersMoveTokens == true &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['tokens', 'updatedAt']);
+        allow delete: if isGM(tableId) || isSuperAdmin();
+      }
+
+      // Marcações rápidas no mapa ("olhem aqui"): qualquer um da mesa cria,
+      // todos veem, e elas somem sozinhas na tela depois de alguns segundos.
+      // A faxina dos documentos velhos é feita pelo cliente do Mestre.
+      match /pings/{pingId} {
+        allow read: if signedIn();
+        allow create: if signedIn();
         allow delete: if isGM(tableId) || isSuperAdmin();
       }
 

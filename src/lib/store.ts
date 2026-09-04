@@ -14,7 +14,17 @@ import {
   where,
 } from 'firebase/firestore'
 import { db } from '../firebase'
-import type { Character, GameTable, LogEntry, MonsterImageEntry, NPC, RollRequest, Scene, SceneLibraryItem } from '../types'
+import type {
+  Character,
+  GameTable,
+  LogEntry,
+  MonsterImageEntry,
+  NPC,
+  RollRequest,
+  Scene,
+  SceneLibraryItem,
+  ScenePing,
+} from '../types'
 import { newId, newTableCode } from './id'
 
 function requireDb() {
@@ -284,6 +294,35 @@ export function sceneDoc(tableId: string) {
 
 export async function saveScene(tableId: string, scene: Scene) {
   await setDoc(sceneDoc(tableId), stripUndefined({ ...scene, updatedAt: Date.now() }))
+}
+
+/**
+ * Marcações rápidas no mapa. Ficam numa subcoleção própria (e não no documento
+ * da cena) porque qualquer pessoa da mesa pode criar uma — e ninguém além do
+ * Mestre pode mexer no resto da cena.
+ */
+const pingsCol = (tableId: string) => collection(db!, 'tables', tableId, 'pings')
+
+export async function addScenePing(tableId: string, ping: { x: number; y: number; label: string }) {
+  const id = newId()
+  await setDoc(doc(pingsCol(tableId), id), { id, ...ping, at: Date.now() })
+}
+
+export function listenScenePings(tableId: string, cb: (pings: ScenePing[]) => void) {
+  return onSnapshot(
+    query(pingsCol(tableId), orderBy('at', 'desc'), limit(12)),
+    (snap) => cb(snap.docs.map((d) => d.data() as ScenePing)),
+    (err) => console.error('Erro ao observar as marcações', err),
+  )
+}
+
+/** Faxina das marcações velhas — só o Mestre apaga, e só de vez em quando. */
+export async function cleanOldPings(tableId: string, olderThanMs = 60_000) {
+  const snap = await getDocs(pingsCol(tableId))
+  const cutoff = Date.now() - olderThanMs
+  await Promise.all(
+    snap.docs.filter((d) => ((d.data() as ScenePing).at ?? 0) < cutoff).map((d) => deleteDoc(d.ref)),
+  )
 }
 
 export function listenScene(tableId: string, cb: (scene: Scene | null) => void) {

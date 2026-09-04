@@ -1,8 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { SurvivalControls } from '../components/SurvivalControls'
+import { SurvivalHud } from '../components/SurvivalHud'
+import type { TrackKey } from '../components/SurvivalHud'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import { firebaseConfigured } from '../firebase'
+import { logNote } from '../lib/actions'
+import { drawFog, emptyFog, fogRows, isRevealed, paintFog, resampleFog, setAll } from '../lib/fog'
 import { newId } from '../lib/id'
 import { normalizeImageUrl } from '../lib/imageUrl'
 import {
@@ -20,28 +25,37 @@ import {
   tokenSquares,
   tokenWidth,
 } from '../lib/sceneGeometry'
+import { computeSurvivalEffects, consume } from '../lib/survival'
 import { resolveTokenStatus } from '../lib/tokenStatus'
 import {
   addSceneLibraryItem,
+  addScenePing,
+  cleanOldPings,
   deleteSceneLibraryItem,
   listenCharacters,
   listenNPCs,
   listenScene,
   listenSceneLibrary,
+  listenScenePings,
   listenTable,
   saveScene,
+  updateCharacter,
   updateSceneLibraryItem,
+  updateTable,
 } from '../lib/store'
-import { CREATURE_SIZES, SCENE_TOKEN_LABELS } from '../types'
+import { CREATURE_SIZES, PING_LIFETIME_MS, SCENE_TOKEN_LABELS, emptySurvival } from '../types'
 import type {
   Character,
   GameTable,
   NPC,
   Scene,
+  SceneFog,
   SceneLibraryItem,
   SceneMap,
+  ScenePing,
   SceneToken,
   SceneTokenKind,
+  SurvivalState,
   TimeOfDay,
 } from '../types'
 
@@ -66,6 +80,12 @@ const KIND_DOT: Record<SceneTokenKind, string> = {
 }
 
 const EMPTY_SCENE: Scene = { backgroundUrl: '', tokens: [], revealed: false, updatedAt: 0 }
+
+type Tool = 'mover' | 'mapa' | 'revelar' | 'esconder' | 'regua'
+interface Point {
+  x: number
+  y: number
+}
 
 /** Escuridão do local sem luz: forte o bastante para pesar, fraca o bastante
  * para o grupo continuar enxergando o mapa e as peças. */
@@ -104,16 +124,24 @@ export function ScenePage() {
   const [characters, setCharacters] = useState<Character[]>([])
   const [npcs, setNpcs] = useState<NPC[]>([])
   const [library, setLibrary] = useState<SceneLibraryItem[]>([])
-  const [dragId, setDragId] = useState<string | null>(null)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   /** Tamanho em pixels do palco nesta tela — o palco em si é igual para todos,
    *  só a quantidade de pixels muda de monitor para monitor. */
   const [stage, setStage] = useState({ width: 0, height: 0 })
-  /** Modo de ajuste do mapa (só o Mestre): arrastar e a roda passam a mexer na
-   *  imagem de fundo em vez de na lente de quem está olhando. */
-  const [mapEdit, setMapEdit] = useState(false)
+  /**
+   * Ferramenta ativa. Uma só de cada vez, para o arraste nunca ficar ambíguo:
+   * "mover" é o normal (arrastar peças e navegar), "mapa" passa o arraste e a
+   * roda para a imagem de fundo, "revelar"/"esconder" pintam a névoa e "régua"
+   * mede distância. Jogador só tem "mover" e "régua".
+   */
+  const [tool, setTool] = useState<Tool>('mover')
   const [snap, setSnap] = useState(true)
+  const [brush, setBrush] = useState(4)
+  const [ruler, setRuler] = useState<{ from: Point; to: Point } | null>(null)
+  const [pings, setPings] = useState<ScenePing[]>([])
+  const [survivalOpen, setSurvivalOpen] = useState(false)
+  const mapEdit = tool === 'mapa'
   const [announcement, setAnnouncement] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
   const boardRef = useRef<HTMLDivElement>(null)
@@ -122,12 +150,20 @@ export function ScenePage() {
   const localEdit = useRef(false)
   const panDrag = useRef<{ startX: number; startY: number; panX: number; panY: number } | null>(null)
   const mapDrag = useRef<{ startX: number; startY: number; offsetX: number; offsetY: number } | null>(null)
+  const fogPaint = useRef<'revelar' | 'esconder' | null>(null)
+  const rulerDrag = useRef(false)
+  const seenPings = useRef(new Set<string>())
+  const dragIdRef = useRef<string | null>(null)
+  const survivalRef = useRef<SurvivalState | undefined>(undefined)
+  const charactersRef = useRef<Character[]>([])
+  const survivalBusy = useRef(false)
   const aspectProbed = useRef('')
   // O listener da roda é nativo e não é recriado a cada render; estas refs dão
   // a ele acesso ao estado atual sem precisar reanexá-lo o tempo todo.
   const mapEditRef = useRef(false)
   const sceneRef = useRef<Scene>(EMPTY_SCENE)
   const persistRef = useRef<(next: Scene) => void>(() => {})
+  const paintAtRef = useRef<(x: number, y: number) => void>(() => {})
 
   const scene = sceneState ?? EMPTY_SCENE
   const timeOfDay: TimeOfDay = scene.timeOfDay ?? 'day'
@@ -137,6 +173,13 @@ export function ScenePage() {
   const lightRy = LIGHT_RX * aspect
   const columns = sceneGridColumns(scene)
   const rows = Math.max(1, Math.round(columns / aspect))
+  const survival = table?.survival
+  const myCharacter = characters.find((c) => c.ownerUid === uid)
+  /** A malha da névoa acompanha a proporção do palco; se o Mestre mudar o
+   *  recorte, o que já foi explorado é reamostrado em vez de se perder. */
+  const fog: SceneFog | undefined = scene.fog
+    ? resampleFog(scene.fog, scene.fog.cols, fogRows(aspect))
+    : undefined
 
   // Relógio simples para saber se uma fonte de luz de personagem ainda está
   // ativa (lightUntil) — não precisa de precisão de segundo, só reagir a tempo.
@@ -204,6 +247,26 @@ export function ScenePage() {
     mapEditRef.current = isGM && mapEdit
   }, [isGM, mapEdit])
 
+  // Marcações do mapa: entram, piscam e saem sozinhas. Guardamos as já vistas
+  // para uma marcação antiga não voltar a piscar quando o listener recarrega.
+  useEffect(() => {
+    if (!firebaseConfigured) return
+    return listenScenePings(tableId, (list) => {
+      const fresh = list.filter((p) => p.at > Date.now() - PING_LIFETIME_MS && !seenPings.current.has(p.id))
+      if (fresh.length === 0) return
+      for (const p of fresh) {
+        seenPings.current.add(p.id)
+        setTimeout(() => setPings((prev) => prev.filter((x) => x.id !== p.id)), PING_LIFETIME_MS)
+      }
+      setPings((prev) => [...prev, ...fresh])
+    })
+  }, [tableId])
+
+  useEffect(() => {
+    if (!isGM) return
+    void cleanOldPings(tableId).catch(() => {})
+  }, [isGM, tableId])
+
   const persist = useCallback(
     (next: Scene) => {
       setSceneState(next)
@@ -215,7 +278,63 @@ export function ScenePage() {
   useEffect(() => {
     sceneRef.current = sceneState ?? EMPTY_SCENE
     persistRef.current = persist
+    charactersRef.current = characters
   })
+
+  // O eco do Firestore manda: se o Mestre mexeu nos ajustes (ou outra aba
+  // escreveu), a ref acompanha o documento.
+  useEffect(() => {
+    survivalRef.current = survival
+  }, [survival])
+
+  /**
+   * Relógio da privação. Só o navegador do Mestre aplica os efeitos — é o único
+   * que pode escrever nas fichas de todo mundo. O cálculo é idempotente: se
+   * nada mudou, nada é escrito, então rodar de novo não cobra dano duas vezes.
+   */
+  useEffect(() => {
+    if (!isGM || !survival?.enabled) return
+    let cancelled = false
+
+    async function run() {
+      // Uma passada de cada vez: aplicar dano leva várias escritas, e duas
+      // passadas ao mesmo tempo cobrariam o mesmo tique duas vezes.
+      if (survivalBusy.current) return
+      survivalBusy.current = true
+      try {
+        const effects = computeSurvivalEffects(survivalRef.current, charactersRef.current, Date.now())
+        if (cancelled || (effects.characterUpdates.length === 0 && !effects.survival)) return
+        // O novo estado da privação vai primeiro — e a ref é atualizada na hora,
+        // sem esperar o eco do Firestore. É isso que impede o tique de ser
+        // cobrado de novo enquanto a escrita ainda está a caminho.
+        if (effects.survival) {
+          survivalRef.current = effects.survival
+          await updateTable(tableId, { survival: effects.survival })
+        }
+        for (const u of effects.characterUpdates) {
+          await updateCharacter(tableId, u.characterId, u.patch)
+        }
+        for (const msg of effects.logs) {
+          await logNote({ tableId, actorName: 'Mestre', actorType: 'gm' }, msg, 'table')
+        }
+      } catch (err) {
+        console.error('Erro ao aplicar fome e sede', err)
+      } finally {
+        survivalBusy.current = false
+      }
+    }
+
+    void run()
+    const id = setInterval(() => void run(), 15000)
+    return () => {
+      cancelled = true
+      clearInterval(id)
+    }
+    // Depende do estado da privação (para reagir na hora quando o Mestre come,
+    // reabastece ou muda os tempos), mas *não* das fichas: elas são lidas por
+    // ref. Se dependesse delas, cada escrita numa ficha reiniciaria o efeito e
+    // cobraria o mesmo tique de novo, num laço.
+  }, [isGM, survival, tableId])
 
   /**
    * Primeira vez que um mapa entra: o palco assume a proporção da própria
@@ -237,6 +356,23 @@ export function ScenePage() {
 
   function patchMap(patch: Partial<SceneMap>) {
     persist({ ...scene, map: { ...map, ...patch } })
+  }
+
+  function patchFog(next: SceneFog) {
+    persist({ ...scene, fog: next })
+  }
+
+  function ping(at: Point) {
+    const label = isGM ? 'Mestre' : (myCharacter?.name ?? 'Jogador')
+    void addScenePing(tableId, { ...at, label }).catch((err) => console.error('Erro ao marcar o mapa', err))
+  }
+
+  function consumeSupply(track: TrackKey) {
+    const base: SurvivalState = survival ?? emptySurvival()
+    const key = track === 'food' ? 'hunger' : 'thirst'
+    void updateTable(tableId, {
+      survival: { ...base, enabled: true, [key]: consume(base[key], Date.now()) },
+    })
   }
 
   function toggleTimeOfDay() {
@@ -286,34 +422,40 @@ export function ScenePage() {
     }
   }
 
-  // Arrastar peças (só o Mestre) — a posição é sempre relativa ao palco, então
-  // o mesmo arraste cai no mesmo ponto do mapa em qualquer tela.
+  // Arrastar peças. A peça em arraste vive numa ref, e não no estado: os
+  // listeners ficam sempre ligados, então nenhum movimento se perde no intervalo
+  // entre o clique e o próximo render. A posição é sempre relativa ao palco, o
+  // que faz o mesmo arraste cair no mesmo ponto do mapa em qualquer tela.
   useEffect(() => {
-    if (!dragId || !isGM) return
     function place(base: Scene, clientX: number, clientY: number) {
+      const id = dragIdRef.current
       const raw = pointerToRelative(clientX, clientY)
       return {
         ...base,
         tokens: base.tokens.map((t) => {
-          if (t.id !== dragId) return t
+          if (t.id !== id) return t
           const pos = snap ? snapToGrid(raw.x, raw.y, tokenSquares(t, columns), columns, aspect) : raw
           return { ...t, ...pos }
         }),
       }
     }
     function onMove(e: PointerEvent) {
+      if (!dragIdRef.current) return
       localEdit.current = true
       setSceneState((s) => place(s ?? EMPTY_SCENE, e.clientX, e.clientY))
     }
     function onUp(e: PointerEvent) {
+      if (!dragIdRef.current) return
       setSceneState((s) => {
         const next = place(s ?? EMPTY_SCENE, e.clientX, e.clientY)
-        void saveScene(tableId, next).finally(() => {
-          localEdit.current = false
-        })
+        void saveScene(tableId, next)
+          .catch((err) => console.error('Erro ao mover a peça', err))
+          .finally(() => {
+            localEdit.current = false
+          })
         return next
       })
-      setDragId(null)
+      dragIdRef.current = null
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
@@ -321,7 +463,7 @@ export function ScenePage() {
       window.removeEventListener('pointermove', onMove)
       window.removeEventListener('pointerup', onUp)
     }
-  }, [dragId, isGM, tableId, snap, columns, aspect])
+  }, [tableId, snap, columns, aspect])
 
   // Zoom com a roda do mouse (todo mundo pode, é só a visão de cada um).
   // Precisa ser um listener nativo não-passivo para poder cancelar o scroll da página.
@@ -349,14 +491,70 @@ export function ScenePage() {
   // Arrastar o fundo para "andar" pelo mapa (pan). Ignorado se o pointerdown
   // começou em cima de um token (que já usa stopPropagation).
   function onViewportPointerDown(e: React.PointerEvent) {
-    if (isGM && mapEdit) {
+    // Alt + clique marca o mapa para todo mundo, com qualquer ferramenta ativa.
+    if (e.altKey) {
+      e.preventDefault()
+      ping(pointerToRelative(e.clientX, e.clientY))
+      return
+    }
+    if (isGM && tool === 'mapa') {
       mapDrag.current = { startX: e.clientX, startY: e.clientY, offsetX: map.offsetX ?? 0, offsetY: map.offsetY ?? 0 }
+      return
+    }
+    if (isGM && (tool === 'revelar' || tool === 'esconder')) {
+      fogPaint.current = tool
+      paintAt(e.clientX, e.clientY)
+      return
+    }
+    if (tool === 'regua') {
+      const at = pointerToRelative(e.clientX, e.clientY)
+      rulerDrag.current = true
+      setRuler({ from: at, to: at })
       return
     }
     panDrag.current = { startX: e.clientX, startY: e.clientY, panX: pan.x, panY: pan.y }
   }
+
+  /** Pinta a névoa sob o cursor, criando a malha na primeira pincelada. */
+  function paintAt(clientX: number, clientY: number) {
+    if (!fogPaint.current) return
+    const at = pointerToRelative(clientX, clientY)
+    const base = sceneRef.current.fog
+      ? resampleFog(sceneRef.current.fog, sceneRef.current.fog.cols, fogRows(aspect))
+      : emptyFog(aspect)
+    const next = paintFog(base, at.x, at.y, brush, fogPaint.current === 'revelar')
+    if (next.cells === base.cells && sceneRef.current.fog) return
+    persistRef.current({ ...sceneRef.current, fog: { ...next, enabled: true } })
+  }
+
+  // O pincel é chamado pelo listener global de ponteiro, que não é recriado a
+  // cada render; a ref é o que dá a ele a versão atual da função.
+  useEffect(() => {
+    paintAtRef.current = paintAt
+  })
   useEffect(() => {
     function onMove(e: PointerEvent) {
+      if (fogPaint.current) {
+        paintAtRef.current(e.clientX, e.clientY)
+        return
+      }
+      if (rulerDrag.current) {
+        const rect = boardRef.current?.getBoundingClientRect()
+        if (rect) {
+          setRuler((r) =>
+            r
+              ? {
+                  ...r,
+                  to: {
+                    x: Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width)),
+                    y: Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height)),
+                  },
+                }
+              : r,
+          )
+        }
+        return
+      }
       if (mapDrag.current) {
         // Move a imagem dentro do palco. Divide pelo tamanho do palco (e pelo
         // zoom da lente) para o mapa acompanhar o cursor na proporção certa.
@@ -382,6 +580,8 @@ export function ScenePage() {
     function onUp() {
       panDrag.current = null
       mapDrag.current = null
+      fogPaint.current = null
+      rulerDrag.current = false
     }
     window.addEventListener('pointermove', onMove)
     window.addEventListener('pointerup', onUp)
@@ -431,13 +631,28 @@ export function ScenePage() {
    * e NPCs seguem visíveis: o grupo sabe onde os seus estão.
    */
   function hiddenInTheDark(t: SceneToken) {
-    if (locationLit) return false
+    const isMine = t.refType === 'character' && Boolean(myCharacter) && t.refId === myCharacter?.id
+    // Terreno ainda não explorado esconde qualquer peça — menos a sua própria,
+    // que é como o jogador se localiza no mapa.
+    if (fog?.enabled && !isMine && !isRevealed(fog, t.x, t.y)) return true
     if (t.kind !== 'monster' && t.kind !== 'boss') return false
+    if (locationLit) return false
     return !litTokens.some((l) => {
       const dx = (t.x - l.x) / (LIGHT_RX * LIGHT_REVEAL)
       const dy = (t.y - l.y) / (lightRy * LIGHT_REVEAL)
       return dx * dx + dy * dy <= 1
     })
+  }
+
+  /**
+   * Quem pode arrastar esta peça. O Mestre move tudo; o jogador só move a peça
+   * ligada à própria ficha, e só quando o Mestre libera na mesa.
+   */
+  function canDrag(t: SceneToken) {
+    if (tool !== 'mover') return false
+    if (isGM) return true
+    if (!table?.playersMoveTokens) return false
+    return t.refType === 'character' && Boolean(myCharacter) && t.refId === myCharacter?.id
   }
 
   const visibleTokens = isGM ? scene.tokens : boardTokens.filter((t) => !hiddenInTheDark(t))
@@ -505,6 +720,85 @@ export function ScenePage() {
         </div>
       )}
 
+      {!showWaitingScreen && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[11px] uppercase tracking-[0.14em] text-purple-400/60">Ferramenta</span>
+          {(
+            [
+              ['mover', '✋ Mover', 'Arrastar peças e navegar pelo mapa'],
+              ['regua', '📏 Régua', 'Arraste de um ponto a outro para medir em quadrados'],
+              ...(isGM
+                ? ([
+                    ['mapa', '🖼️ Ajustar mapa', 'Arraste e role para enquadrar a imagem de fundo'],
+                    ['revelar', '🔦 Revelar névoa', 'Pinte o que o grupo já explorou'],
+                    ['esconder', '🌫️ Cobrir com névoa', 'Volte a esconder uma área'],
+                  ] as [Tool, string, string][])
+                : []),
+            ] as [Tool, string, string][]
+          ).map(([key, label, hint]) => (
+            <Button
+              key={key}
+              title={hint}
+              variant={tool === key ? 'primary' : 'secondary'}
+              className="text-xs"
+              onClick={() => setTool(key)}
+            >
+              {label}
+            </Button>
+          ))}
+          {(tool === 'revelar' || tool === 'esconder') && (
+            <label className="flex items-center gap-1.5 text-xs text-purple-200">
+              pincel
+              <input type="range" min={1} max={14} value={brush} onChange={(e) => setBrush(Number(e.target.value))} />
+              <span className="w-5 tabular-nums">{brush}</span>
+            </label>
+          )}
+          <span className="text-xs text-purple-300/50">Alt + clique marca um ponto para a mesa toda.</span>
+          {isGM && (
+            <>
+              <Button className="text-xs" onClick={() => setSurvivalOpen(true)}>
+                🍖 Fome e sede
+              </Button>
+              {fog?.enabled ? (
+                <>
+                  <Button className="text-xs" onClick={() => patchFog(setAll(fog, false))}>
+                    Cobrir tudo
+                  </Button>
+                  <Button className="text-xs" onClick={() => patchFog(setAll(fog, true))}>
+                    Revelar tudo
+                  </Button>
+                  <Button variant="danger" className="text-xs" onClick={() => persist({ ...scene, fog: { ...fog, enabled: false } })}>
+                    Desligar névoa
+                  </Button>
+                </>
+              ) : (
+                <Button className="text-xs" onClick={() => patchFog(scene.fog ? { ...scene.fog, enabled: true } : emptyFog(aspect))}>
+                  🌫️ Ligar névoa de guerra
+                </Button>
+              )}
+              <label className="flex items-center gap-1.5 text-xs text-purple-200" title="Cada jogador arrasta só a peça do próprio personagem">
+                <input
+                  type="checkbox"
+                  checked={Boolean(table.playersMoveTokens)}
+                  onChange={(e) => updateTable(tableId, { playersMoveTokens: e.target.checked })}
+                />
+                Jogadores movem a própria peça
+              </label>
+            </>
+          )}
+        </div>
+      )}
+
+      {survivalOpen && isGM && (
+        <SurvivalControls
+          survival={survival}
+          characters={characters}
+          now={now}
+          onChange={(next) => updateTable(tableId, { survival: next })}
+          onClose={() => setSurvivalOpen(false)}
+        />
+      )}
+
       {isGM && !showWaitingScreen && (
         <MapFrameControls
           scene={scene}
@@ -513,7 +807,6 @@ export function ScenePage() {
           aspect={aspect}
           mapEdit={mapEdit}
           snap={snap}
-          onToggleMapEdit={() => setMapEdit((v) => !v)}
           onToggleSnap={() => setSnap((v) => !v)}
           onPatchMap={patchMap}
           onPatchScene={(patch) => persist({ ...scene, ...patch })}
@@ -561,7 +854,19 @@ export function ScenePage() {
             </div>
           )}
 
-          <div className="pointer-events-none absolute right-2 top-2 z-10 flex gap-1">
+          {survival?.enabled && (
+            <div className="pointer-events-none absolute left-2 top-2 z-20">
+              <SurvivalHud
+                survival={survival}
+                now={now}
+                isGM={isGM}
+                partySize={survival.partyIds.length}
+                onConsume={consumeSupply}
+              />
+            </div>
+          )}
+
+          <div className="pointer-events-none absolute right-2 top-2 z-20 flex gap-1">
             <button
               className="pointer-events-auto rounded bg-black/60 px-2 py-1 text-sm text-purple-100 hover:bg-black/80"
               onClick={() => setZoom((z) => Math.min(MAX_ZOOM, z + 0.2))}
@@ -630,15 +935,15 @@ export function ScenePage() {
                   key={t.id}
                   token={t}
                   width={tokenWidth(t, columns)}
-                  isGM={isGM}
                   hiddenFromPlayers={isGM && hiddenInTheDark(t)}
                   characters={characters}
                   npcs={npcs}
+                  draggable={canDrag(t)}
                   onPointerDown={(e) => {
-                    if (!isGM || mapEdit) return
+                    if (e.altKey || !canDrag(t)) return
                     e.preventDefault()
                     e.stopPropagation()
-                    setDragId(t.id)
+                    dragIdRef.current = t.id
                   }}
                 />
               ))}
@@ -658,8 +963,27 @@ export function ScenePage() {
                 />
               )}
 
+              {fog?.enabled && (
+                <FogLayer fog={fog} width={stage.width} height={stage.height} isGM={isGM} />
+              )}
+
+              {ruler && <RulerOverlay ruler={ruler} columns={columns} aspect={aspect} />}
+
+              {pings.map((p) => (
+                <span
+                  key={p.id}
+                  className="pointer-events-none absolute z-[9] -translate-x-1/2 -translate-y-1/2"
+                  style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+                >
+                  <span className="animate-pulse-ring block h-10 w-10 rounded-full border-2 border-[color:var(--gold-bright)] bg-[color:var(--gold)]/25" />
+                  <span className="absolute left-1/2 top-full mt-0.5 -translate-x-1/2 whitespace-nowrap rounded bg-black/75 px-1 text-[10px] text-[color:var(--gold-bright)]">
+                    {p.label}
+                  </span>
+                </span>
+              ))}
+
               {isGM && mapEdit && (
-                <div className="pointer-events-none absolute inset-0 z-[7] border-2 border-dashed border-[color:var(--gold)]/70" />
+                <div className="pointer-events-none absolute inset-0 z-[10] border-2 border-dashed border-[color:var(--gold)]/70" />
               )}
             </div>
           </div>
@@ -739,7 +1063,6 @@ function MapFrameControls({
   aspect,
   mapEdit,
   snap,
-  onToggleMapEdit,
   onToggleSnap,
   onPatchMap,
   onPatchScene,
@@ -750,7 +1073,6 @@ function MapFrameControls({
   aspect: number
   mapEdit: boolean
   snap: boolean
-  onToggleMapEdit: () => void
   onToggleSnap: () => void
   onPatchMap: (patch: Partial<SceneMap>) => void
   onPatchScene: (patch: Partial<Scene>) => void
@@ -782,14 +1104,6 @@ function MapFrameControls({
     <Card className="flex flex-col gap-2 p-3">
       <div className="flex flex-wrap items-center gap-2">
         <SectionTitle>Mapa</SectionTitle>
-        <Button
-          variant={mapEdit ? 'primary' : 'secondary'}
-          onClick={onToggleMapEdit}
-          className="text-xs"
-          title="Enquanto ligado, arrastar move o mapa e a roda dá zoom nele"
-        >
-          {mapEdit ? '🖐 Ajustando o mapa — clique para sair' : '🖐 Ajustar mapa'}
-        </Button>
         <label className="flex items-center gap-1.5 text-xs text-purple-200">
           <input type="checkbox" checked={Boolean(scene.showGrid)} onChange={(e) => onPatchScene({ showGrid: e.target.checked })} />
           Mostrar grade
@@ -931,6 +1245,84 @@ function MapFrameControls({
   )
 }
 
+/**
+ * Camada da névoa. É um canvas porque a borda em degradê nasce do desenho: a
+ * malha é ampliada com suavização e ainda recebe um borrão, então o mapa vai
+ * sumindo aos poucos em vez de terminar num recorte duro. O Mestre vê a névoa
+ * translúcida (precisa enxergar o que ainda não revelou); o jogador vê fechada.
+ */
+function FogLayer({
+  fog,
+  width,
+  height,
+  isGM,
+}: {
+  fog: SceneFog
+  width: number
+  height: number
+  isGM: boolean
+}) {
+  const ref = useRef<HTMLCanvasElement>(null)
+
+  useEffect(() => {
+    const canvas = ref.current
+    if (!canvas || width < 1 || height < 1) return
+    canvas.width = Math.round(width)
+    canvas.height = Math.round(height)
+    drawFog(canvas, fog, { alpha: isGM ? 0.5 : 0.97, softness: isGM ? 0.45 : 0.8 })
+  }, [fog, width, height, isGM])
+
+  return (
+    <canvas
+      ref={ref}
+      data-fog=""
+      className="pointer-events-none absolute inset-0 z-[5] h-full w-full"
+      aria-hidden="true"
+    />
+  )
+}
+
+/** Régua: distância em quadrados entre dois pontos do palco. */
+function RulerOverlay({
+  ruler,
+  columns,
+  aspect,
+}: {
+  ruler: { from: Point; to: Point }
+  columns: number
+  aspect: number
+}) {
+  // As células são quadradas, mas 0..1 em Y cobre menos pixels que em X — daí
+  // o `aspect` na conta do eixo vertical.
+  const dx = (ruler.to.x - ruler.from.x) * columns
+  const dy = ((ruler.to.y - ruler.from.y) * columns) / aspect
+  const squares = Math.sqrt(dx * dx + dy * dy)
+
+  return (
+    <div className="pointer-events-none absolute inset-0 z-[8]">
+      <svg className="h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <line
+          x1={ruler.from.x * 100}
+          y1={ruler.from.y * 100}
+          x2={ruler.to.x * 100}
+          y2={ruler.to.y * 100}
+          stroke="var(--gold-bright)"
+          strokeWidth={0.4}
+          strokeDasharray="1.6 1.2"
+          vectorEffect="non-scaling-stroke"
+        />
+      </svg>
+      <span
+        data-ruler=""
+        className="absolute -translate-x-1/2 -translate-y-1/2 whitespace-nowrap rounded border border-[color:var(--gold-dark)] bg-black/80 px-1.5 py-0.5 text-xs text-[color:var(--gold-bright)]"
+        style={{ left: `${((ruler.from.x + ruler.to.x) / 2) * 100}%`, top: `${((ruler.from.y + ruler.to.y) / 2) * 100}%` }}
+      >
+        {squares.toFixed(1)} quadrados
+      </span>
+    </div>
+  )
+}
+
 function SceneTokenThumb({ token }: { token: SceneToken }) {
   return (
     <div
@@ -948,7 +1340,7 @@ function SceneTokenThumb({ token }: { token: SceneToken }) {
 function SceneTokenView({
   token: t,
   width,
-  isGM,
+  draggable,
   hiddenFromPlayers = false,
   characters,
   npcs,
@@ -957,7 +1349,8 @@ function SceneTokenView({
   token: SceneToken
   /** Diâmetro como fração da largura do palco, já na escala do mapa. */
   width: number
-  isGM: boolean
+  /** Quem está olhando pode arrastar esta peça. */
+  draggable: boolean
   /** Só o Mestre está vendo esta criatura: ela está no escuro para os jogadores. */
   hiddenFromPlayers?: boolean
   characters: Character[]
@@ -979,7 +1372,7 @@ function SceneTokenView({
       data-token={t.label}
       className={`absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-full ${
         isBoss ? 'ring-[5px] animate-boss-glow' : 'ring-2'
-      } ${KIND_STYLE[t.kind]} ${statusRing} ${isGM ? 'cursor-grab active:cursor-grabbing' : ''} ${
+      } ${KIND_STYLE[t.kind]} ${statusRing} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${
         t.onBoard === false ? 'opacity-40' : hiddenFromPlayers ? 'opacity-60' : ''
       }`}
       style={{
@@ -988,11 +1381,11 @@ function SceneTokenView({
         width: `${width * 100}%`,
         aspectRatio: '1 / 1',
       }}
-      title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${hiddenFromPlayers ? ' — no escuro: os jogadores não veem' : ''}${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
+      title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${hiddenFromPlayers ? ' — escondido dos jogadores (escuridão ou névoa)' : ''}${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
     >
       {hiddenFromPlayers && (
         <span
-          title="No escuro — os jogadores não veem esta criatura"
+          title="Escondido dos jogadores — escuridão ou névoa de guerra"
           className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-slate-900/60 bg-slate-100 text-slate-900 shadow"
         >
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
