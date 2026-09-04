@@ -28,11 +28,16 @@ export function TableRoute() {
   }, [tableId])
 
   const isGM = Boolean(uid && table && table.gmUid === uid)
+  // A busca da ficha só depende de a mesa *existir* — não do conteúdo dela.
+  // Usar o objeto `table` aqui refazia a busca a cada escrita do Mestre (abrir
+  // combate, anoitecer, abrir a loja...), o que desmontava a ficha inteira e
+  // apagava o estado da tela: aba aberta, alvo escolhido, rascunho de anotação.
+  const tableLoaded = Boolean(table)
 
   /** Descobre qual ficha este jogador controla: pelo nome informado no login,
    * ou pela ficha já vinculada a este dispositivo. */
   const resolveCharacter = useCallback(async () => {
-    if (!uid || !table || isGM) return
+    if (!uid || !tableLoaded || isGM) return
     setCharacter(undefined)
     setLookupError('')
     try {
@@ -54,7 +59,7 @@ export function TableRoute() {
       setLookupError(err instanceof Error ? err.message : 'Erro ao procurar o personagem.')
       setCharacter(null)
     }
-  }, [uid, table, isGM, requestedName, tableId])
+  }, [uid, tableLoaded, isGM, requestedName, tableId])
 
   useEffect(() => {
     void resolveCharacter()

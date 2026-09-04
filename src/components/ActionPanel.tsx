@@ -2,12 +2,81 @@ import { useEffect, useState } from 'react'
 import { SPELLS } from '../data/spells'
 import { ancestryAttackBonus, ancestryDamageBonus, ancestrySpellBonus } from '../lib/ancestry'
 import { requestRoll, spendHpOnRoll } from '../lib/rollFlow'
-import { listenMyRollRequests } from '../lib/store'
+import { listenCharacters, listenMyRollRequests, listenNPCs } from '../lib/store'
 import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
-import type { AttributeKey, Character, GameTable, RollRequest } from '../types'
+import type { AttributeKey, Character, GameTable, NPC, RollRequest } from '../types'
 import { Badge, Button, Input, Select, TabButton } from './ui'
 
 type Tab = 'teste' | 'ataque' | 'dano' | 'feitico'
+
+interface Combatant {
+  id: string
+  name: string
+  defense: number
+  kind: 'char' | 'npc'
+}
+
+/**
+ * A quem o personagem pode mirar: só as criaturas que estão *dentro* do combate
+ * em andamento — e nunca ele mesmo. Fora do combate a lista é vazia e a Defesa
+ * do alvo volta a ser digitada à mão, como antes.
+ */
+function combatantsFor(table: GameTable, character: Character, characters: Character[], npcs: NPC[]): Combatant[] {
+  const list: Combatant[] = []
+  for (const entry of table.combatOrder) {
+    const [kind, refId] = entry.split(':')
+    if (kind === 'char') {
+      if (refId === character.id) continue
+      const c = characters.find((x) => x.id === refId)
+      if (c) list.push({ id: entry, name: c.name, defense: c.defense, kind: 'char' })
+    } else {
+      const n = npcs.find((x) => x.id === refId)
+      if (n) list.push({ id: entry, name: n.name, defense: n.defense, kind: 'npc' })
+    }
+  }
+  return list
+}
+
+/**
+ * Escolha do alvo. Só aparece com o combate em andamento e com o personagem
+ * dentro dele — é a condição da regra: fora do combate não há a quem mirar.
+ */
+function TargetPicker({
+  inCombat,
+  combatants,
+  targetId,
+  onChange,
+}: {
+  inCombat: boolean
+  combatants: Combatant[]
+  targetId: string
+  onChange: (id: string) => void
+}) {
+  if (!inCombat) {
+    return (
+      <p className="text-xs text-purple-300/50">
+        🎯 Para escolher um alvo, o combate precisa estar em andamento e você precisa estar nele. Até lá, informe a
+        Defesa à mão.
+      </p>
+    )
+  }
+  if (combatants.length === 0) {
+    return <p className="text-xs text-purple-300/50">🎯 Nenhuma outra criatura no combate para mirar.</p>
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <span className="text-sm text-purple-300/70">Alvo:</span>
+      <Select value={targetId} onChange={(e) => onChange(e.target.value)} className="w-auto min-w-[11rem]">
+        <option value="">Sem alvo (Defesa à mão)</option>
+        {combatants.map((t) => (
+          <option key={t.id} value={t.id}>
+            {t.name} — Def {t.defense} ({t.kind === 'char' ? 'PJ' : 'NPC'})
+          </option>
+        ))}
+      </Select>
+    </div>
+  )
+}
 
 /**
  * Painel de ações do jogador. Toda rolagem vira um pedido ao Mestre quando a
@@ -25,8 +94,13 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
   const [busy, setBusy] = useState(false)
   const [feedback, setFeedback] = useState('')
   const [myRequests, setMyRequests] = useState<RollRequest[]>([])
+  const [tableChars, setTableChars] = useState<Character[]>([])
+  const [tableNpcs, setTableNpcs] = useState<NPC[]>([])
+  const [targetId, setTargetId] = useState('')
 
   useEffect(() => listenMyRollRequests(table.id, character.id, setMyRequests), [table.id, character.id])
+  useEffect(() => listenCharacters(table.id, setTableChars), [table.id])
+  useEffect(() => listenNPCs(table.id, setTableNpcs), [table.id])
 
   const skillBonus = skillName ? 1 : 0
   const attrMod = character.attributes[attrKey].mod
@@ -36,6 +110,11 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
   const raceAttackBonus = ancestryAttackBonus(character, weapon?.habilidade)
   const raceDamageBonus = ancestryDamageBonus(character, weapon?.habilidade)
   const raceSpellBonus = ancestrySpellBonus(character)
+  const inCombat = table.combatActive && table.combatOrder.includes(`char:${character.id}`)
+  const combatants = inCombat ? combatantsFor(table, character, tableChars, tableNpcs) : []
+  // Se o alvo saiu do combate (ou o combate acabou), a escolha se desfaz sozinha.
+  const target = combatants.find((t) => t.id === targetId) ?? null
+  const effectiveDefense = target ? target.defense : targetDefense
   const pending = myRequests.find((r) => r.status === 'pending')
   const lastResolved = myRequests.find((r) => r.status === 'approved' || r.status === 'denied')
 
@@ -59,20 +138,21 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
           : kind === 'attack'
             ? {
                 kind,
-                description: `Ataque com ${weapon?.name ?? 'desarmado'}${skillLabel}${raceLabel(raceAttackBonus)} (Defesa ${targetDefense})`,
+                description: `Ataque com ${weapon?.name ?? 'desarmado'}${skillLabel}${raceLabel(raceAttackBonus)}${target ? ` contra ${target.name}` : ''} (Defesa ${effectiveDefense})`,
                 attrKey,
                 attrMod: attrMod + raceAttackBonus,
                 skillBonus,
                 skillName,
-                target: targetDefense,
+                target: effectiveDefense,
                 weaponLabel: weapon?.name ?? 'Desarmado',
                 weaponDano: weapon?.dano ?? '1d3',
                 damageAttrMod: (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus,
+                targetName: target?.name,
               }
             : kind === 'spell'
               ? {
                   kind,
-                  description: `Conjurar ${spell.name} (-${spell.custo} PV, ${ATTRIBUTE_LABELS[attrKey]}${raceLabel(raceSpellBonus)})`,
+                  description: `Conjurar ${spell.name}${target ? ` em ${target.name}` : ''} (-${spell.custo} PV, ${ATTRIBUTE_LABELS[attrKey]}${raceLabel(raceSpellBonus)})`,
                   attrKey,
                   attrMod: attrMod + raceSpellBonus,
                   skillBonus,
@@ -81,13 +161,15 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                   spellName: spell.name,
                   spellCost: spell.custo,
                   spellEffect: spell.efeito,
+                  targetName: target?.name,
                 }
               : {
                   kind,
-                  description: `Dano com ${weapon?.name ?? 'desarmado'}${raceLabel(raceDamageBonus)}`,
+                  description: `Dano com ${weapon?.name ?? 'desarmado'}${raceLabel(raceDamageBonus)}${target ? ` em ${target.name}` : ''}`,
                   weaponLabel: weapon?.name ?? 'Desarmado',
                   weaponDano: weapon?.dano ?? '1d3',
                   damageAttrMod: (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus,
+                  targetName: target?.name,
                 }
       const { pendingId } = await requestRoll(table, character, uid, intent)
       setFeedback(pendingId ? 'Pedido enviado ao Mestre — aguardando liberação.' : 'Rolagem feita!')
@@ -158,6 +240,7 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
 
         {tab === 'ataque' && (
           <div className="flex flex-col gap-2">
+            <TargetPicker inCombat={inCombat} combatants={combatants} targetId={targetId} onChange={setTargetId} />
             <div className="flex flex-wrap items-center gap-2">
               <Select value={weaponIdx} onChange={(e) => setWeaponIdx(Number(e.target.value))} className="w-auto">
                 {equipped.length === 0 && <option value={0}>Desarmado</option>}
@@ -168,12 +251,18 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                 ))}
               </Select>
               <span className="text-sm text-purple-300/70">Defesa do alvo:</span>
-              <Input
-                type="number"
-                value={targetDefense}
-                onChange={(e) => setTargetDefense(Number(e.target.value))}
-                className="w-16"
-              />
+              {target ? (
+                <Badge tone="good">
+                  {target.defense} · {target.name}
+                </Badge>
+              ) : (
+                <Input
+                  type="number"
+                  value={targetDefense}
+                  onChange={(e) => setTargetDefense(Number(e.target.value))}
+                  className="w-16"
+                />
+              )}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <span className="text-sm text-purple-300/70">Modificador de dano:</span>
@@ -201,31 +290,34 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
         )}
 
         {tab === 'dano' && (
-          <div className="flex flex-wrap items-center gap-2">
-            <Select value={weaponIdx} onChange={(e) => setWeaponIdx(Number(e.target.value))} className="w-auto">
-              {equipped.length === 0 && <option value={0}>Desarmado (1d3)</option>}
-              {equipped.map((w, i) => (
-                <option key={w.id} value={i}>
-                  {w.name} ({w.dano})
-                </option>
-              ))}
-            </Select>
-            <Select
-              value={damageAttr}
-              onChange={(e) => setDamageAttr(e.target.value as AttributeKey | '')}
-              className="w-auto"
-            >
-              <option value="">Sem Modificador</option>
-              {ATTRIBUTE_KEYS.map((k) => (
-                <option key={k} value={k}>
-                  {ATTRIBUTE_LABELS[k]} ({character.attributes[k].mod >= 0 ? '+' : ''}
-                  {character.attributes[k].mod})
-                </option>
-              ))}
-            </Select>
-            <Button variant="danger" disabled={busy} onClick={() => send('damage')}>
-              Pedir dano
-            </Button>
+          <div className="flex flex-col gap-2">
+            <TargetPicker inCombat={inCombat} combatants={combatants} targetId={targetId} onChange={setTargetId} />
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={weaponIdx} onChange={(e) => setWeaponIdx(Number(e.target.value))} className="w-auto">
+                {equipped.length === 0 && <option value={0}>Desarmado (1d3)</option>}
+                {equipped.map((w, i) => (
+                  <option key={w.id} value={i}>
+                    {w.name} ({w.dano})
+                  </option>
+                ))}
+              </Select>
+              <Select
+                value={damageAttr}
+                onChange={(e) => setDamageAttr(e.target.value as AttributeKey | '')}
+                className="w-auto"
+              >
+                <option value="">Sem Modificador</option>
+                {ATTRIBUTE_KEYS.map((k) => (
+                  <option key={k} value={k}>
+                    {ATTRIBUTE_LABELS[k]} ({character.attributes[k].mod >= 0 ? '+' : ''}
+                    {character.attributes[k].mod})
+                  </option>
+                ))}
+              </Select>
+              <Button variant="danger" disabled={busy} onClick={() => send('damage')}>
+                Pedir dano
+              </Button>
+            </div>
           </div>
         )}
 
@@ -243,7 +335,14 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                 Pedir conjuração
               </Button>
             </div>
+            <TargetPicker inCombat={inCombat} combatants={combatants} targetId={targetId} onChange={setTargetId} />
             <p className="text-xs text-purple-300/60">{spell.efeito}</p>
+            {target && (
+              <p className="text-xs text-purple-300/50">
+                A conjuração continua sendo um Teste contra Dificuldade 13 (pág. 57) — o alvo entra na narração do
+                efeito, não na dificuldade.
+              </p>
+            )}
             {!canCastSpell && <p className="text-xs text-red-400">PV insuficiente para conjurar este feitiço.</p>}
           </div>
         )}

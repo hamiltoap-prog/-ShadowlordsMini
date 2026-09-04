@@ -17,6 +17,8 @@ export interface RollIntent {
   weaponDano?: string
   damageAttrMod?: number
   spellEffect?: string
+  /** Nome do alvo escolhido no combate — entra na narração do resultado. */
+  targetName?: string
 }
 
 /**
@@ -51,6 +53,7 @@ export async function requestRoll(
     weaponDano: intent.weaponDano,
     damageAttrMod: intent.damageAttrMod,
     spellEffect: intent.spellEffect,
+    targetName: intent.targetName,
   })
   return { pendingId }
 }
@@ -98,7 +101,7 @@ export async function executeRoll(
         attrMod: intent.damageAttrMod ?? 0,
         weaponLabel: intent.weaponLabel,
       })
-      summary += ` — ${formatDamageAndEffect(dmg)}`
+      summary += ` — ${formatDamageAndEffect(dmg, undefined, intent.targetName)}`
     }
     outcome = { summary, dice: check.roll.rolls, total: check.total, success: check.success, kind: 'attack' }
   } else if (intent.kind === 'spell') {
@@ -109,7 +112,7 @@ export async function executeRoll(
       label: `Feitiço: ${intent.spellName ?? ''}`,
     })
     outcome = {
-      summary: formatSpell(intent.spellName ?? 'Feitiço', result, intent.spellEffect),
+      summary: formatSpell(intent.spellName ?? 'Feitiço', result, intent.spellEffect, intent.targetName),
       dice: result.check.roll.rolls,
       total: result.check.total,
       success: result.check.success,
@@ -127,7 +130,7 @@ export async function executeRoll(
       attrMod: intent.damageAttrMod ?? 0,
       weaponLabel: intent.weaponLabel,
     })
-    outcome = { summary: formatDamage(dmg), dice: dmg.roll.rolls, total: dmg.total, kind: 'damage' }
+    outcome = { summary: formatDamage(dmg, intent.targetName), dice: dmg.roll.rolls, total: dmg.total, kind: 'damage' }
   }
 
   const entry = {
@@ -167,6 +170,7 @@ export async function approveRollRequest(table: GameTable, request: RollRequest,
       weaponDano: request.weaponDano,
       damageAttrMod: request.damageAttrMod,
       spellEffect: request.spellEffect,
+      targetName: request.targetName,
     },
     { actorType: 'player' },
   )

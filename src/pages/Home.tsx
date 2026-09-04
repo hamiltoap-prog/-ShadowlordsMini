@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Credits } from '../components/Credits'
 import { Button, Card, Input, SectionTitle } from '../components/ui'
 import { useAuth } from '../hooks/useAuth'
 import { authErrorMessage, firebaseConfigured, registerGM, sendGMPasswordReset, signInGM } from '../firebase'
@@ -81,6 +82,8 @@ export function Home() {
           ))}
         </Card>
       )}
+
+      <Credits />
     </div>
   )
 }

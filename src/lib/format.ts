@@ -12,22 +12,25 @@ export function formatCheck(check: CheckResult): string {
   }`
 }
 
-export function formatDamage(damage: DamageResult): string {
+export function formatDamage(damage: DamageResult, targetName?: string): string {
   const dice = damage.roll.rolls.length ? `[${damage.roll.rolls.join(', ')}]` : ''
   const modPart = damage.attrMod ? ` ${damage.attrMod >= 0 ? '+' : ''}${damage.attrMod}` : ''
-  return `Dano (${damage.weaponLabel}): ${damage.roll.notation} ${dice}${modPart} = ${damage.total}`
+  const alvo = targetName ? ` em ${targetName}` : ''
+  return `Dano (${damage.weaponLabel}): ${damage.roll.notation} ${dice}${modPart} = ${damage.total}${alvo}`
 }
 
 /** Narra dano + efeito logo após um ataque bem-sucedido, ex: "causou 15 de
- * dano — Veneno. Paralisia: 1-3 em 1d6". */
-export function formatDamageAndEffect(damage: DamageResult, effectNote?: string): string {
+ * dano em Aranha Gigante — Veneno. Paralisia: 1-3 em 1d6". */
+export function formatDamageAndEffect(damage: DamageResult, effectNote?: string, targetName?: string): string {
+  const alvo = targetName ? ` em ${targetName}` : ''
   const suffix = effectNote ? ` — ${effectNote}` : ''
-  return `causou ${damage.total} de dano${suffix}`
+  return `causou ${damage.total} de dano${alvo}${suffix}`
 }
 
-export function formatSpell(spellName: string, result: SpellCastResult, effect?: string): string {
+export function formatSpell(spellName: string, result: SpellCastResult, effect?: string, targetName?: string): string {
   const base = formatCheck({ ...result.check, label: `Feitiço: ${spellName} (-${result.pvCost} PV)` })
   if (result.curse) return `${base} — Maldição! (1d66=${result.curse.d66}) ${result.curse.effect}`
-  if (result.check.success && effect) return `${base} — efeito: ${effect}`
+  const alvo = targetName ? ` em ${targetName}` : ''
+  if (result.check.success && effect) return `${base} — efeito${alvo}: ${effect}`
   return base
 }

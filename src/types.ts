@@ -246,6 +246,8 @@ export interface RollRequest {
   /** Texto do efeito do feitiço (ex: "3d6 Dano e vítima rola Teste para 1/2
    * Dano"), narrado no resultado quando a conjuração é bem-sucedida. */
   spellEffect?: string
+  /** Nome do alvo escolhido no rastreador de combate, quando houver. */
+  targetName?: string
 }
 
 export type SceneTokenKind = 'pc' | 'npc' | 'monster' | 'boss'

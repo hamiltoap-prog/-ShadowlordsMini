@@ -66,6 +66,10 @@
   --color-purple-800: #1e3040;
   --color-purple-900: #16293a;
   --color-purple-950: #0a1420;
+
+  /* Tinta das artes originais do manual (usadas como máscara, ver .art-mask):
+   * creme no escuro, marrom-oliva no claro — os dois tons da obra impressa. */
+  --art-ink: #e3d6b8;
 }
 
 /* Modo claro: pergaminho e ouro velho, mantendo a mesma estrutura. */
@@ -129,6 +133,8 @@
   --color-sky-900: #e0f2fe;
   --color-orange-200: #7c2d12;
   --color-orange-900: #ffedd5;
+
+  --art-ink: #5d4c26;
 }
 
 html,
@@ -170,6 +176,21 @@ input[type='range'] {
 }
 
 /* Placa de HUD: canto chanfrado, como as molduras do jogo. */
+/* Artes do manual original entram como máscara de alfa, não como imagem
+ * colorida: assim o mesmo arquivo serve ao modo claro e ao escuro, bastando
+ * trocar --art-ink. A URL da arte vai em --art-src, no próprio elemento. */
+.art-mask {
+  -webkit-mask-image: var(--art-src);
+  mask-image: var(--art-src);
+  -webkit-mask-repeat: no-repeat;
+  mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  mask-position: center;
+  -webkit-mask-size: contain;
+  mask-size: contain;
+  background-color: var(--art-ink);
+}
+
 .hud-chamfer {
   clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
 }
