@@ -6,6 +6,7 @@ import { ConditionsEditor } from '../components/ConditionsEditor'
 import { DiceOverlay } from '../components/DiceOverlay'
 import { LogFeed } from '../components/LogFeed'
 import { PortraitEditor } from '../components/PortraitEditor'
+import { ShopPanel } from '../components/ShopPanel'
 import { XpPanel } from '../components/XpPanel'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
 import { ARMORS, GEAR, WEAPONS } from '../data/equipment'
@@ -320,6 +321,9 @@ export function PlayerView({
           <ActionPanel table={table} character={character} uid={uid} />
         </Card>
 
+        {/* Loja — aparece com destaque assim que o Mestre libera */}
+        <ShopPanel open={shopAvailable} gold={character.gold} onBuy={buy} />
+
         {/* Iluminação */}
         <LightSourceCard table={table} character={character} />
 
@@ -327,11 +331,7 @@ export function PlayerView({
         <Card className="p-4">
           <div className="mb-2 flex items-center justify-between">
             <SectionTitle>Inventário</SectionTitle>
-            {shopAvailable ? (
-              <Badge tone="good">loja aberta</Badge>
-            ) : (
-              <span className="text-xs text-purple-400/50">a loja abre quando o Mestre liberar</span>
-            )}
+            <span className="text-sm text-[color:var(--gold)]">💰 {character.gold}</span>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             <div>
@@ -389,28 +389,6 @@ export function PlayerView({
             ))}
           </div>
 
-          {shopAvailable && (
-            <div className="mt-3 grid gap-3 border-t border-purple-900/30 pt-3 sm:grid-cols-3">
-              <ShopColumn
-                title="Armas"
-                items={WEAPONS.map((w) => ({ name: w.name, custo: w.custo, extra: w.dano }))}
-                gold={character.gold}
-                onBuy={(n) => buy('weapon', n)}
-              />
-              <ShopColumn
-                title="Armaduras"
-                items={ARMORS.map((a) => ({ name: a.name, custo: a.custo, extra: `+${a.defesa} Def` }))}
-                gold={character.gold}
-                onBuy={(n) => buy('armor', n)}
-              />
-              <ShopColumn
-                title="Equipamentos"
-                items={GEAR.map((g) => ({ name: g.name, custo: g.custo }))}
-                gold={character.gold}
-                onBuy={(n) => buy('gear', n)}
-              />
-            </div>
-          )}
         </Card>
 
         {/* XP */}
@@ -570,35 +548,3 @@ function GMAttributeEditor({
   )
 }
 
-function ShopColumn({
-  title,
-  items,
-  gold,
-  onBuy,
-}: {
-  title: string
-  items: { name: string; custo: number; extra?: string }[]
-  gold: number
-  onBuy: (name: string) => void
-}) {
-  return (
-    <div className="rounded-lg border border-purple-900/30 bg-black/20 p-2">
-      <p className="mb-1 text-xs uppercase text-purple-400/70">{title}</p>
-      <div className="max-h-40 overflow-y-auto">
-        {items.map((i) => (
-          <button
-            key={i.name}
-            disabled={gold < i.custo}
-            onClick={() => onBuy(i.name)}
-            className="flex w-full items-center justify-between gap-2 rounded px-1 py-0.5 text-left text-xs text-purple-100 hover:bg-purple-900/30 disabled:opacity-30"
-          >
-            <span>
-              {i.name} {i.extra && <span className="text-purple-300/50">({i.extra})</span>}
-            </span>
-            <span className="text-amber-300/80">{i.custo}</span>
-          </button>
-        ))}
-      </div>
-    </div>
-  )
-}

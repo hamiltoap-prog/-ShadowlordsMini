@@ -72,7 +72,11 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   para o formato que carrega de verdade
 - ⚔️ Criação de personagem escolhendo cada opção (ou sorteando nos dados), com foto de perfil.
   Cada Origem tem um ícone "ⓘ" com mais informações sobre aquele lugar do cenário do manual
-- 🛒 Loja liberada pelo Mestre: compras só acontecem quando o grupo está num lugar de comércio
+- 🛒 **Loja liberada pelo Mestre**: quando ele abre, a loja aparece sozinha e em destaque na
+  ficha de cada jogador — com armas, armaduras e equipamento em abas, busca por nome, o preço ao
+  lado das moedas que a pessoa tem e o botão de comprar desligado no que não dá para pagar. A
+  compra desconta na hora, já entra equipada (armas e armaduras) e vai para o registro da sessão;
+  abrir e fechar a loja também são anunciados lá
 - 🔗 Entrada de qualquer aparelho: jogador entra com o código da mesa + nome do personagem;
   o Mestre entra com e-mail e senha (com recuperação por e-mail)
 - 🛡️ **Painel de administração** em `/admin`, separado do jogo: quem tem o crachá de super

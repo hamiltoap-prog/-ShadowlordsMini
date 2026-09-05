@@ -10,6 +10,7 @@ import { Portrait } from '../components/Portrait'
 import { ReferenceBrowser } from '../components/ReferenceBrowser'
 import { Badge, Button, Card, Input, SectionTitle, TabButton } from '../components/ui'
 import { authErrorMessage, changeGMPassword } from '../firebase'
+import { logNote } from '../lib/actions'
 import { deleteCharacter, listenCharacters, listenNPCs, listenRollRequests, updateTable } from '../lib/store'
 import type { Character, GameTable, NPC } from '../types'
 import { CharacterCreate } from './CharacterCreate'
@@ -25,6 +26,18 @@ export function GMDashboard({ table }: { table: GameTable }) {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
   const [creatingChar, setCreatingChar] = useState(false)
+
+  const actor = { tableId: table.id, actorName: 'Mestre', actorType: 'gm' as const }
+
+  /** Abrir a loja é um acontecimento da mesa: os jogadores veem no registro. */
+  async function toggleShop(open: boolean) {
+    await updateTable(table.id, { shopOpen: open })
+    await logNote(
+      actor,
+      open ? '🏪 A loja abriu — os personagens já podem comprar.' : '🏪 A loja fechou.',
+      'table',
+    )
+  }
 
   useEffect(() => listenCharacters(table.id, setCharacters), [table.id])
   useEffect(() => listenNPCs(table.id, setNpcs), [table.id])
@@ -105,7 +118,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
                 <input
                   type="checkbox"
                   checked={table.shopOpen}
-                  onChange={(e) => updateTable(table.id, { shopOpen: e.target.checked })}
+                  onChange={(e) => toggleShop(e.target.checked)}
                 />
                 Loja aberta — jogadores podem comprar armas, armaduras e itens
               </label>
