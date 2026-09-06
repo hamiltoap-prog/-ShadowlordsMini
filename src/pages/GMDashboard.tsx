@@ -4,6 +4,7 @@ import { ApprovalPanel } from '../components/ApprovalPanel'
 import { CombatTracker } from '../components/CombatTracker'
 import { DiceOverlay } from '../components/DiceOverlay'
 import { GMDiceRoller } from '../components/GMDiceRoller'
+import { ItemForge } from '../components/ItemForge'
 import { LogFeed } from '../components/LogFeed'
 import { NpcManager } from '../components/NpcManager'
 import { Portrait } from '../components/Portrait'
@@ -16,7 +17,7 @@ import type { Character, GameTable, NPC } from '../types'
 import { CharacterCreate } from './CharacterCreate'
 import { PlayerView } from './PlayerView'
 
-type Tab = 'mesa' | 'personagens' | 'npcs' | 'combate' | 'tabelas' | 'config'
+type Tab = 'mesa' | 'personagens' | 'npcs' | 'combate' | 'itens' | 'tabelas' | 'config'
 
 export function GMDashboard({ table }: { table: GameTable }) {
   const [characters, setCharacters] = useState<Character[]>([])
@@ -92,6 +93,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
             ['personagens', `Personagens (${players.length})`],
             ['npcs', `NPCs (${gmCharacters.length + npcs.length})`],
             ['combate', 'Combate'],
+            ['itens', 'Itens'],
             ['tabelas', 'Tabelas & Referência'],
             ['config', 'Configurações'],
           ] as [Tab, string][]
@@ -299,6 +301,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
         </div>
       )}
       {tab === 'combate' && <CombatTracker table={table} characters={characters} npcs={npcs} />}
+      {tab === 'itens' && <ItemForge table={table} characters={characters} />}
       {tab === 'tabelas' && <ReferenceBrowser table={table} actorName={table.gmNickname} />}
       {tab === 'config' && <TableSettings table={table} />}
     </div>

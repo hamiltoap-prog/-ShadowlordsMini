@@ -37,6 +37,8 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   uma barra zera, o sistema aplica sozinho a condição (Faminto/Desidratado) e passa a tirar PV
   no ritmo que ele escolheu. Clicar no gráfico gasta um quarto do estoque e enche a barra de
   volta; o estoque pode ser reabastecido a qualquer momento
+- 🏷️ O nome de cada peça na tela de jogo só aparece ao passar o mouse por cima — com a mesa
+  cheia, uma etiqueta embaixo de cada uma tampava o mapa mais do que ajudava
 - 🩸 A tela de jogo mostra quando alguém está avariado (< 50% PV) ou crítico (< 10% PV) e quais
   condições afetam cada um — sem nunca expor o número exato de PV aos outros jogadores
 - 🌇🌑 **Dia e noite na tela de jogo**: o Mestre alterna entre dia (tom acinzentado avermelhado)
@@ -72,11 +74,18 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   para o formato que carrega de verdade
 - ⚔️ Criação de personagem escolhendo cada opção (ou sorteando nos dados), com foto de perfil.
   Cada Origem tem um ícone "ⓘ" com mais informações sobre aquele lugar do cenário do manual
+- 🔨 **Forja de itens do Mestre**: crie armas, armaduras e equipamentos próprios da campanha —
+  mágicos ou não, com tipo de dano (dos três do manual aos mágicos: fogo, gelo, sagrado...),
+  bônus de ataque e dano, cargas, raridade, ícone, descrição e efeitos com gatilho e chance
+  ("ao acertar: Queimadura, 1-2 em 1d6"). Cada item pode ir para a loja, ser **entregue direto na
+  ficha** de alguém (tesouro, recompensa) ou os dois. O que o item tem de próprio viaja junto
+  para a ficha, então os bônus entram na rolagem e o efeito é narrado no acerto
 - 🛒 **Loja liberada pelo Mestre**: quando ele abre, a loja aparece sozinha e em destaque na
   ficha de cada jogador — com armas, armaduras e equipamento em abas, busca por nome, o preço ao
   lado das moedas que a pessoa tem e o botão de comprar desligado no que não dá para pagar. A
   compra desconta na hora, já entra equipada (armas e armaduras) e vai para o registro da sessão;
-  abrir e fechar a loja também são anunciados lá
+  abrir e fechar a loja também são anunciados lá. Os itens forjados aparecem no topo da
+  prateleira, marcados pela raridade e pelo selo de mágico
 - 🔗 Entrada de qualquer aparelho: jogador entra com o código da mesa + nome do personagem;
   o Mestre entra com e-mail e senha (com recuperação por e-mail)
 - 🛡️ **Painel de administração** em `/admin`, separado do jogo: quem tem o crachá de super

@@ -16,6 +16,7 @@ import {
 import { db } from '../firebase'
 import type {
   Character,
+  CustomItem,
   GameTable,
   LogEntry,
   MonsterImageEntry,
@@ -296,6 +297,26 @@ export async function saveScene(tableId: string, scene: Scene) {
   await setDoc(sceneDoc(tableId), stripUndefined({ ...scene, updatedAt: Date.now() }))
 }
 
+// ---------- Itens forjados pelo Mestre ----------
+
+const customItemsCol = (tableId: string) => collection(requireDb(), 'tables', tableId, 'customItems')
+
+export async function saveCustomItem(tableId: string, item: CustomItem) {
+  await setDoc(doc(customItemsCol(tableId), item.id), stripUndefined(item))
+}
+
+export async function deleteCustomItem(tableId: string, itemId: string) {
+  await deleteDoc(doc(customItemsCol(tableId), itemId))
+}
+
+export function listenCustomItems(tableId: string, cb: (items: CustomItem[]) => void) {
+  return onSnapshot(
+    query(customItemsCol(tableId), orderBy('createdAt', 'desc')),
+    (snap) => cb(snap.docs.map((d) => d.data() as CustomItem)),
+    (err) => console.error('Erro ao observar os itens da mesa', err),
+  )
+}
+
 /**
  * Marcações rápidas no mapa. Ficam numa subcoleção própria (e não no documento
  * da cena) porque qualquer pessoa da mesa pode criar uma — e ninguém além do
@@ -387,7 +408,18 @@ export async function countTableContents(tableId: string): Promise<{ characters:
   return { characters: chars.size, npcs: npcs.size, log: log.size }
 }
 
-const TABLE_SUBCOLLECTIONS = ['characters', 'npcs', 'log', 'secretRolls', 'rollRequests', 'scene', 'sceneLibrary', 'monsterImages']
+const TABLE_SUBCOLLECTIONS = [
+  'characters',
+  'npcs',
+  'log',
+  'secretRolls',
+  'rollRequests',
+  'scene',
+  'sceneLibrary',
+  'monsterImages',
+  'customItems',
+  'pings',
+]
 
 /**
  * Apaga a mesa inteira. O Firestore não apaga subcoleções em cascata, então

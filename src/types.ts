@@ -19,28 +19,144 @@ export interface AttributeScore {
 
 export type Attributes = Record<AttributeKey, AttributeScore>
 
-export interface InventoryItem {
+/**
+ * O que todo item carregado guarda quando veio da forja do Mestre. Fica junto
+ * do item na ficha (e não só no catálogo da mesa) para a ficha continuar
+ * inteira mesmo se o Mestre apagar o molde depois.
+ */
+export interface CarriedItemFlavor {
+  /** Emoji do item, para reconhecer na lista de relance. */
+  icon?: string
+  magical?: boolean
+  rarity?: ItemRarity
+  description?: string
+  /** Resumo dos efeitos, pronto para entrar na narração da rolagem. */
+  effectNote?: string
+}
+
+export interface InventoryItem extends CarriedItemFlavor {
   id: string
   name: string
   qty: number
   note?: string
+  /** Usos restantes de um item mágico com cargas. */
+  charges?: number
 }
 
-export interface CarriedWeapon {
+export interface CarriedWeapon extends CarriedItemFlavor {
   id: string
   name: string
   dano: string // notação de dado, ex: "2d6"
   habilidade?: string
   tipo?: string
   equipped: boolean
+  /** Bônus mágicos, somados na rolagem de ataque e na de dano. */
+  attackBonus?: number
+  damageBonus?: number
+  alcance?: string
 }
 
-export interface CarriedArmor {
+export interface CarriedArmor extends CarriedItemFlavor {
   id: string
   name: string
   defesaBonus: number
   protecao?: string
   equipped: boolean
+}
+
+/**
+ * Tipos de dano. Os três primeiros são os do manual (pág. 53); os demais
+ * existem para as armas mágicas e criaturas que fogem da regra.
+ */
+export const DAMAGE_TYPES = [
+  'Contundente',
+  'Cortante',
+  'Perfurante',
+  'Fogo',
+  'Gelo',
+  'Elétrico',
+  'Ácido',
+  'Veneno',
+  'Sagrado',
+  'Profano',
+  'Psíquico',
+] as const
+export type DamageType = (typeof DAMAGE_TYPES)[number]
+
+/** Habilidades que regem o uso de uma arma (pág. 53). */
+export const WEAPON_SKILLS = ['Combate', 'Luta', 'Pontaria', 'Arremesso', 'Arremesso e Luta'] as const
+
+export const ITEM_RARITIES = ['comum', 'incomum', 'raro', 'lendario'] as const
+export type ItemRarity = (typeof ITEM_RARITIES)[number]
+
+export const RARITY_LABELS: Record<ItemRarity, string> = {
+  comum: 'Comum',
+  incomum: 'Incomum',
+  raro: 'Raro',
+  lendario: 'Lendário',
+}
+
+/** Quando o efeito de um item entra em cena. */
+export const EFFECT_TRIGGERS = ['acerto', 'equipado', 'uso', 'sempre'] as const
+export type EffectTrigger = (typeof EFFECT_TRIGGERS)[number]
+
+export const EFFECT_TRIGGER_LABELS: Record<EffectTrigger, string> = {
+  acerto: 'Ao acertar o alvo',
+  equipado: 'Enquanto equipado',
+  uso: 'Ao usar o item',
+  sempre: 'Sempre ativo',
+}
+
+export interface ItemEffect {
+  id: string
+  name: string
+  description: string
+  trigger: EffectTrigger
+  /** Quando o efeito não é garantido, ex: "1-2 em 1d6". */
+  chance?: string
+}
+
+export type CustomItemKind = 'weapon' | 'armor' | 'gear'
+
+export const CUSTOM_ITEM_KIND_LABELS: Record<CustomItemKind, string> = {
+  weapon: 'Arma',
+  armor: 'Armadura',
+  gear: 'Equipamento',
+}
+
+/**
+ * Item forjado pelo Mestre. Fica no catálogo da mesa e pode ir para a loja,
+ * ser dado direto a um personagem, ou os dois.
+ */
+export interface CustomItem {
+  id: string
+  tableId: string
+  kind: CustomItemKind
+  name: string
+  icon?: string
+  description?: string
+  rarity: ItemRarity
+  magical: boolean
+  custo: number
+  /** Aparece na loja para os jogadores comprarem quando ela estiver aberta. */
+  inShop: boolean
+  createdAt: number
+
+  // Arma
+  dano?: string
+  habilidade?: string
+  damageTypes?: DamageType[]
+  alcance?: string
+  attackBonus?: number
+  damageBonus?: number
+
+  // Armadura
+  defesaBonus?: number
+  protecao?: string
+
+  /** Usos de um item mágico com cargas (0 ou ausente = ilimitado). */
+  charges?: number
+  effects?: ItemEffect[]
 }
 
 export interface CharacterSkill {
@@ -304,6 +420,8 @@ export interface RollRequest {
   /** Texto do efeito do feitiço (ex: "3d6 Dano e vítima rola Teste para 1/2
    * Dano"), narrado no resultado quando a conjuração é bem-sucedida. */
   spellEffect?: string
+  /** Efeito próprio da arma usada, quando ela tiver um. */
+  weaponEffect?: string
   /** Nome do alvo escolhido no rastreador de combate, quando houver. */
   targetName?: string
 }

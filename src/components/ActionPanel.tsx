@@ -109,6 +109,9 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
   const spell = SPELLS.find((s) => s.name === spellName) ?? SPELLS[0]
   const raceAttackBonus = ancestryAttackBonus(character, weapon?.habilidade)
   const raceDamageBonus = ancestryDamageBonus(character, weapon?.habilidade)
+  // Bônus de uma arma mágica forjada pelo Mestre — somam ao ataque e ao dano.
+  const magicAttackBonus = weapon?.attackBonus ?? 0
+  const magicDamageBonus = weapon?.damageBonus ?? 0
   const raceSpellBonus = ancestrySpellBonus(character)
   const inCombat = table.combatActive && table.combatOrder.includes(`char:${character.id}`)
   const combatants = inCombat ? combatantsFor(table, character, tableChars, tableNpcs) : []
@@ -124,6 +127,7 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
     try {
       const skillLabel = skillName ? ` + ${skillName}` : ''
       const raceLabel = (bonus: number) => (bonus ? ' + raça' : '')
+      const magicLabel = (bonus: number) => (bonus ? ' + mágico' : '')
       const intent =
         kind === 'attribute_test'
           ? {
@@ -138,15 +142,17 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
           : kind === 'attack'
             ? {
                 kind,
-                description: `Ataque com ${weapon?.name ?? 'desarmado'}${skillLabel}${raceLabel(raceAttackBonus)}${target ? ` contra ${target.name}` : ''} (Defesa ${effectiveDefense})`,
+                description: `Ataque com ${weapon?.name ?? 'desarmado'}${skillLabel}${raceLabel(raceAttackBonus)}${magicLabel(magicAttackBonus)}${target ? ` contra ${target.name}` : ''} (Defesa ${effectiveDefense})`,
                 attrKey,
-                attrMod: attrMod + raceAttackBonus,
+                attrMod: attrMod + raceAttackBonus + magicAttackBonus,
                 skillBonus,
                 skillName,
                 target: effectiveDefense,
                 weaponLabel: weapon?.name ?? 'Desarmado',
                 weaponDano: weapon?.dano ?? '1d3',
-                damageAttrMod: (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus,
+                damageAttrMod:
+                  (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus + magicDamageBonus,
+                weaponEffect: weapon?.effectNote,
                 targetName: target?.name,
               }
             : kind === 'spell'
@@ -165,10 +171,11 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                 }
               : {
                   kind,
-                  description: `Dano com ${weapon?.name ?? 'desarmado'}${raceLabel(raceDamageBonus)}${target ? ` em ${target.name}` : ''}`,
+                  description: `Dano com ${weapon?.name ?? 'desarmado'}${raceLabel(raceDamageBonus)}${magicLabel(magicDamageBonus)}${target ? ` em ${target.name}` : ''}`,
                   weaponLabel: weapon?.name ?? 'Desarmado',
                   weaponDano: weapon?.dano ?? '1d3',
-                  damageAttrMod: (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus,
+                  damageAttrMod:
+                    (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus + magicDamageBonus,
                   targetName: target?.name,
                 }
       const { pendingId } = await requestRoll(table, character, uid, intent)
@@ -246,7 +253,9 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                 {equipped.length === 0 && <option value={0}>Desarmado</option>}
                 {equipped.map((w, i) => (
                   <option key={w.id} value={i}>
-                    {w.name} ({w.dano})
+                    {w.magical ? '✦ ' : ''}
+                    {w.name} ({w.dano}
+                    {w.damageBonus ? `${w.damageBonus > 0 ? '+' : ''}${w.damageBonus}` : ''})
                   </option>
                 ))}
               </Select>

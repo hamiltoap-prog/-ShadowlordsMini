@@ -1370,7 +1370,7 @@ function SceneTokenView({
     <div
       onPointerDown={onPointerDown}
       data-token={t.label}
-      className={`absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-full ${
+      className={`group absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-full ${
         isBoss ? 'ring-[5px] animate-boss-glow' : 'ring-2'
       } ${KIND_STYLE[t.kind]} ${statusRing} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${
         t.onBoard === false ? 'opacity-40' : hiddenFromPlayers ? 'opacity-60' : ''
@@ -1409,8 +1409,8 @@ function SceneTokenView({
       {t.imageUrl ? (
         <img src={t.imageUrl} alt={t.label} className="h-full w-full rounded-full object-cover" draggable={false} />
       ) : (
-        <span className="flex h-full w-full items-center justify-center text-center text-[10px] font-semibold text-white">
-          {t.label.slice(0, 8)}
+        <span className="flex h-full w-full items-center justify-center text-center text-[10px] font-semibold text-white/70 transition-colors group-hover:text-white">
+          {t.label.slice(0, 3)}
         </span>
       )}
       {status && status.tier !== 'ok' && (
@@ -1427,7 +1427,9 @@ function SceneTokenView({
           ⚠
         </span>
       )}
-      <span className="absolute -bottom-5 left-1/2 -translate-x-1/2 whitespace-nowrap rounded bg-black/70 px-1 text-[10px] text-purple-100">
+      {/* O nome só aparece ao passar o mouse: com a mesa cheia, uma etiqueta
+          embaixo de cada peça tampava o mapa mais do que ajudava. */}
+      <span className="pointer-events-none absolute -bottom-5 left-1/2 z-[11] -translate-x-1/2 whitespace-nowrap rounded border border-[color:var(--gold-dark)] bg-black/85 px-1.5 text-[10px] text-purple-100 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
         {t.label}
       </span>
     </div>

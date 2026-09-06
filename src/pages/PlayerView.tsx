@@ -9,14 +9,14 @@ import { PortraitEditor } from '../components/PortraitEditor'
 import { ShopPanel } from '../components/ShopPanel'
 import { XpPanel } from '../components/XpPanel'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
-import { ARMORS, GEAR, WEAPONS } from '../data/equipment'
 import { logNote } from '../lib/actions'
 import { ancestryTraitLabel } from '../lib/ancestry'
 import { totalDefense } from '../lib/characterMath'
-import { newId } from '../lib/id'
-import { listenCharacter, updateCharacter } from '../lib/store'
+import { RARITY_STYLE, toCarriedArmor, toCarriedWeapon, toInventoryItem } from '../lib/items'
+import type { ShopEntry } from '../lib/items'
+import { listenCharacter, listenCustomItems, updateCharacter } from '../lib/store'
 import { ANCESTRY_LABELS, ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
-import type { Character, GameTable } from '../types'
+import type { CarriedItemFlavor, Character, CustomItem, GameTable } from '../types'
 
 /**
  * Ficha do jogador. Quando `asGM` é verdadeiro, o Mestre está controlando a
@@ -36,6 +36,9 @@ export function PlayerView({
   const [character, setCharacter] = useState<Character | null | undefined>(undefined)
   const [noteDraft, setNoteDraft] = useState('')
   const [hpDelta, setHpDelta] = useState(1)
+  const [customItems, setCustomItems] = useState<CustomItem[]>([])
+
+  useEffect(() => listenCustomItems(table.id, setCustomItems), [table.id])
 
   useEffect(() => {
     setCharacter(undefined)
@@ -98,42 +101,33 @@ export function PlayerView({
     await updateCharacter(table.id, character.id, { equipment })
   }
 
-  async function buy(kind: 'weapon' | 'armor' | 'gear', itemName: string) {
-    if (!character) return
-    if (kind === 'weapon') {
-      const w = WEAPONS.find((x) => x.name === itemName)
-      if (!w || character.gold < w.custo) return
+  /**
+   * Compra na loja. A prateleira já entrega tudo que a peça precisa (inclusive
+   * o que o Mestre forjou: mágico, efeitos, bônus), então aqui só sobra pagar e
+   * guardar na ficha.
+   */
+  async function buy(entry: ShopEntry) {
+    if (!character || character.gold < entry.custo) return
+    if (entry.kind === 'weapon') {
       await updateCharacter(table.id, character.id, {
-        gold: character.gold - w.custo,
-        weapons: [
-          ...character.weapons,
-          { id: newId(), name: w.name, dano: w.dano, habilidade: w.habilidade, tipo: w.tipo, equipped: true },
-        ],
+        gold: character.gold - entry.custo,
+        weapons: [...character.weapons, toCarriedWeapon(entry)],
       })
-      await logNote(actor, `comprou ${w.name} por ${w.custo} moedas`, 'note')
-    } else if (kind === 'armor') {
-      const a = ARMORS.find((x) => x.name === itemName)
-      if (!a || character.gold < a.custo) return
-      const armor = [
-        ...character.armor,
-        { id: newId(), name: a.name, defesaBonus: a.defesa, protecao: a.protecao, equipped: true },
-      ]
+    } else if (entry.kind === 'armor') {
+      const armor = [...character.armor, toCarriedArmor(entry)]
       await updateCharacter(table.id, character.id, {
-        gold: character.gold - a.custo,
+        gold: character.gold - entry.custo,
         armor,
         defense: totalDefense(character.baseDefense, armor),
       })
-      await logNote(actor, `comprou ${a.name} por ${a.custo} moedas`, 'note')
     } else {
-      const g = GEAR.find((x) => x.name === itemName)
-      if (!g || character.gold < g.custo) return
-      const existing = character.equipment.find((i) => i.name === g.name)
+      const existing = character.equipment.find((i) => i.name === entry.name)
       const equipment = existing
-        ? character.equipment.map((i) => (i.name === g.name ? { ...i, qty: i.qty + 1 } : i))
-        : [...character.equipment, { id: newId(), name: g.name, qty: 1 }]
-      await updateCharacter(table.id, character.id, { gold: character.gold - g.custo, equipment })
-      await logNote(actor, `comprou ${g.name} por ${g.custo} moedas`, 'note')
+        ? character.equipment.map((i) => (i.name === entry.name ? { ...i, qty: i.qty + 1 } : i))
+        : [...character.equipment, toInventoryItem(entry)]
+      await updateCharacter(table.id, character.id, { gold: character.gold - entry.custo, equipment })
     }
+    await logNote(actor, `comprou ${entry.icon ? entry.icon + ' ' : ''}${entry.name} por ${entry.custo} moedas`, 'note')
   }
 
   return (
@@ -322,7 +316,7 @@ export function PlayerView({
         </Card>
 
         {/* Loja — aparece com destaque assim que o Mestre libera */}
-        <ShopPanel open={shopAvailable} gold={character.gold} onBuy={buy} />
+        <ShopPanel open={shopAvailable} gold={character.gold} customItems={customItems} onBuy={buy} />
 
         {/* Iluminação */}
         <LightSourceCard table={table} character={character} />
@@ -337,9 +331,20 @@ export function PlayerView({
             <div>
               <p className="mb-1 text-xs uppercase text-purple-400/60">Armas</p>
               {character.weapons.map((w) => (
-                <div key={w.id} className="flex items-center justify-between gap-2 py-0.5 text-sm">
-                  <span className={w.equipped ? 'text-purple-100' : 'text-purple-400/50 line-through'}>
-                    {w.name} ({w.dano})
+                <div key={w.id} className="flex items-start justify-between gap-2 py-0.5 text-sm">
+                  <span className={`min-w-0 ${w.equipped ? '' : 'opacity-50'}`}>
+                    <span className="flex flex-wrap items-center gap-1">
+                      {w.icon && <span>{w.icon}</span>}
+                      <span className={`${w.rarity ? RARITY_STYLE[w.rarity] : 'text-purple-100'} ${w.equipped ? '' : 'line-through'}`}>
+                        {w.name}
+                      </span>
+                      <span className="text-purple-300/60">
+                        ({w.dano}
+                        {w.damageBonus ? `${w.damageBonus > 0 ? '+' : ''}${w.damageBonus}` : ''})
+                      </span>
+                      {w.magical && <Badge tone="good">mágico</Badge>}
+                    </span>
+                    <ItemFlavor item={w} />
                   </span>
                   <span className="flex gap-1">
                     <button className="text-xs text-purple-400 hover:text-purple-200" onClick={() => toggleEquip('weapon', w.id)}>
@@ -355,9 +360,17 @@ export function PlayerView({
             <div>
               <p className="mb-1 text-xs uppercase text-purple-400/60">Armaduras</p>
               {character.armor.map((a) => (
-                <div key={a.id} className="flex items-center justify-between gap-2 py-0.5 text-sm">
-                  <span className={a.equipped ? 'text-purple-100' : 'text-purple-400/50 line-through'}>
-                    {a.name} (+{a.defesaBonus})
+                <div key={a.id} className="flex items-start justify-between gap-2 py-0.5 text-sm">
+                  <span className={`min-w-0 ${a.equipped ? '' : 'opacity-50'}`}>
+                    <span className="flex flex-wrap items-center gap-1">
+                      {a.icon && <span>{a.icon}</span>}
+                      <span className={`${a.rarity ? RARITY_STYLE[a.rarity] : 'text-purple-100'} ${a.equipped ? '' : 'line-through'}`}>
+                        {a.name}
+                      </span>
+                      <span className="text-purple-300/60">(+{a.defesaBonus})</span>
+                      {a.magical && <Badge tone="good">mágico</Badge>}
+                    </span>
+                    <ItemFlavor item={a} />
                   </span>
                   <span className="flex gap-1">
                     <button className="text-xs text-purple-400 hover:text-purple-200" onClick={() => toggleEquip('armor', a.id)}>
@@ -374,8 +387,16 @@ export function PlayerView({
           <div className="mt-3">
             <p className="mb-1 text-xs uppercase text-purple-400/60">Equipamento</p>
             {character.equipment.map((i) => (
-              <div key={i.id} className="flex items-center justify-between gap-2 py-0.5 text-sm">
-                <span className="text-purple-100">{i.name}</span>
+              <div key={i.id} className="flex items-start justify-between gap-2 py-0.5 text-sm">
+                <span className="min-w-0">
+                  <span className="flex flex-wrap items-center gap-1">
+                    {i.icon && <span>{i.icon}</span>}
+                    <span className={i.rarity ? RARITY_STYLE[i.rarity] : 'text-purple-100'}>{i.name}</span>
+                    {i.magical && <Badge tone="good">mágico</Badge>}
+                    {i.charges ? <span className="text-xs text-purple-300/50">{i.charges} cargas</span> : null}
+                  </span>
+                  <ItemFlavor item={i} />
+                </span>
                 <span className="flex items-center gap-2">
                   <button className="text-purple-400 hover:text-purple-200" onClick={() => changeQty(i.id, -1)}>
                     −
@@ -422,6 +443,18 @@ export function PlayerView({
         <LogFeed tableId={table.id} />
       </div>
     </div>
+  )
+}
+
+/** Linha de apoio de um item: descrição e efeitos, quando o item tem. */
+function ItemFlavor({ item }: { item: CarriedItemFlavor }) {
+  if (!item.description && !item.effectNote) return null
+  return (
+    <span className="block text-[11px] leading-snug text-purple-400/60">
+      {item.effectNote && <span className="text-[color:var(--gold)]/80">✦ {item.effectNote}</span>}
+      {item.effectNote && item.description && ' · '}
+      {item.description}
+    </span>
   )
 }
 

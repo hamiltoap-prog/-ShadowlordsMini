@@ -17,6 +17,8 @@ export interface RollIntent {
   weaponDano?: string
   damageAttrMod?: number
   spellEffect?: string
+  /** Efeito próprio da arma (item forjado pelo Mestre), narrado no acerto. */
+  weaponEffect?: string
   /** Nome do alvo escolhido no combate — entra na narração do resultado. */
   targetName?: string
 }
@@ -53,6 +55,7 @@ export async function requestRoll(
     weaponDano: intent.weaponDano,
     damageAttrMod: intent.damageAttrMod,
     spellEffect: intent.spellEffect,
+    weaponEffect: intent.weaponEffect,
     targetName: intent.targetName,
   })
   return { pendingId }
@@ -101,7 +104,7 @@ export async function executeRoll(
         attrMod: intent.damageAttrMod ?? 0,
         weaponLabel: intent.weaponLabel,
       })
-      summary += ` — ${formatDamageAndEffect(dmg, undefined, intent.targetName)}`
+      summary += ` — ${formatDamageAndEffect(dmg, intent.weaponEffect, intent.targetName)}`
     }
     outcome = { summary, dice: check.roll.rolls, total: check.total, success: check.success, kind: 'attack' }
   } else if (intent.kind === 'spell') {
@@ -170,6 +173,7 @@ export async function approveRollRequest(table: GameTable, request: RollRequest,
       weaponDano: request.weaponDano,
       damageAttrMod: request.damageAttrMod,
       spellEffect: request.spellEffect,
+      weaponEffect: request.weaponEffect,
       targetName: request.targetName,
     },
     { actorType: 'player' },

@@ -1,58 +1,57 @@
 import { useMemo, useState } from 'react'
-import { ARMORS, ARMOR_NOTE, GEAR, WEAPONS } from '../data/equipment'
+import { ARMOR_NOTE } from '../data/equipment'
+import { RARITY_STYLE, shopEntries } from '../lib/items'
+import type { ShopEntry } from '../lib/items'
+import { CUSTOM_ITEM_KIND_LABELS, RARITY_LABELS } from '../types'
+import type { CustomItem, CustomItemKind } from '../types'
 import { Badge, Button, Card, Input, SectionTitle, TabButton } from './ui'
 
 /**
  * Loja da mesa. Fica escondida até o Mestre liberar; quando ele abre, ela
  * aparece com destaque na ficha do jogador — antes era uma tira apertada no pé
  * do inventário, fácil de não notar justo no momento em que passa a valer.
+ *
+ * A prateleira junta o que está no manual com o que o Mestre forjou (esses vêm
+ * primeiro, marcados pela raridade e pelo selo de mágico).
  */
 
-type ShopTab = 'armas' | 'armaduras' | 'equipamento'
-export type ShopKind = 'weapon' | 'armor' | 'gear'
-
-interface ShopItem {
-  name: string
-  custo: number
-  extra?: string
-  note?: string
-}
-
-const TABS: [ShopTab, string][] = [
-  ['armas', '⚔️ Armas'],
-  ['armaduras', '🛡️ Armaduras'],
-  ['equipamento', '🎒 Equipamento'],
+const TABS: [CustomItemKind, string][] = [
+  ['weapon', '⚔️ Armas'],
+  ['armor', '🛡️ Armaduras'],
+  ['gear', '🎒 Equipamento'],
 ]
-
-const KIND_OF: Record<ShopTab, ShopKind> = { armas: 'weapon', armaduras: 'armor', equipamento: 'gear' }
 
 export function ShopPanel({
   open,
   gold,
+  customItems,
   onBuy,
 }: {
   open: boolean
   gold: number
-  onBuy: (kind: ShopKind, itemName: string) => Promise<void> | void
+  customItems: CustomItem[]
+  onBuy: (entry: ShopEntry) => Promise<void> | void
 }) {
-  const [tab, setTab] = useState<ShopTab>('armas')
+  const [tab, setTab] = useState<CustomItemKind>('weapon')
   const [search, setSearch] = useState('')
   const [busy, setBusy] = useState('')
 
-  const items: ShopItem[] = useMemo(() => {
-    if (tab === 'armas') {
-      return WEAPONS.map((w) => ({ name: w.name, custo: w.custo, extra: w.dano, note: `${w.habilidade} · ${w.tipo}` }))
-    }
-    if (tab === 'armaduras') {
-      return ARMORS.map((a) => ({ name: a.name, custo: a.custo, extra: `+${a.defesa} Defesa`, note: a.protecao }))
-    }
-    return GEAR.map((g) => ({ name: g.name, custo: g.custo }))
-  }, [tab])
+  // Só o que o Mestre marcou como "na loja" vai para a prateleira; o resto do
+  // catálogo dele existe para ser entregue à mão (tesouro, recompensa).
+  const items = useMemo(
+    () => shopEntries(tab, customItems.filter((i) => i.inShop)),
+    [tab, customItems],
+  )
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
     if (!q) return items
-    return items.filter((i) => i.name.toLowerCase().includes(q) || i.note?.toLowerCase().includes(q))
+    return items.filter(
+      (i) =>
+        i.name.toLowerCase().includes(q) ||
+        i.note?.toLowerCase().includes(q) ||
+        i.description?.toLowerCase().includes(q),
+    )
   }, [items, search])
 
   if (!open) {
@@ -69,10 +68,10 @@ export function ShopPanel({
     )
   }
 
-  async function buy(name: string) {
-    setBusy(name)
+  async function buy(entry: ShopEntry) {
+    setBusy(entry.key)
     try {
-      await onBuy(KIND_OF[tab], name)
+      await onBuy(entry)
     } finally {
       setBusy('')
     }
@@ -103,16 +102,26 @@ export function ShopPanel({
       <div className="flex max-h-80 flex-col gap-1 overflow-y-auto pr-1">
         {filtered.map((i) => {
           const canAfford = gold >= i.custo
+          const forged = i.key.startsWith('custom:')
           return (
             <div
-              key={i.name}
-              className="flex items-center justify-between gap-3 rounded border border-purple-900/30 bg-black/20 px-2 py-1.5"
+              key={i.key}
+              data-shop-item={i.name}
+              className={`flex items-center justify-between gap-3 rounded border px-2 py-1.5 ${
+                forged ? 'border-[color:var(--gold-deep)] bg-[color:var(--gold)]/5' : 'border-purple-900/30 bg-black/20'
+              }`}
             >
               <span className="min-w-0">
-                <span className="text-sm text-purple-100">
-                  {i.name} {i.extra && <span className="text-purple-300/60">({i.extra})</span>}
+                <span className="flex flex-wrap items-center gap-1.5 text-sm">
+                  {i.icon && <span>{i.icon}</span>}
+                  <span className={i.rarity ? RARITY_STYLE[i.rarity] : 'text-purple-100'}>{i.name}</span>
+                  {i.extra && <span className="text-purple-300/60">({i.extra})</span>}
+                  {i.magical && <Badge tone="good">mágico</Badge>}
+                  {forged && i.rarity && i.rarity !== 'comum' && <Badge>{RARITY_LABELS[i.rarity]}</Badge>}
                 </span>
-                {i.note && <span className="block truncate text-[11px] text-purple-400/50">{i.note}</span>}
+                {(i.description || i.note) && (
+                  <span className="block truncate text-[11px] text-purple-400/50">{i.description || i.note}</span>
+                )}
               </span>
               <span className="flex shrink-0 items-center gap-2">
                 <span className={`text-sm tabular-nums ${canAfford ? 'text-[color:var(--gold)]' : 'text-red-400/70'}`}>
@@ -121,20 +130,24 @@ export function ShopPanel({
                 <Button
                   variant="primary"
                   className="text-xs"
-                  disabled={!canAfford || busy === i.name}
+                  disabled={!canAfford || busy === i.key}
                   title={canAfford ? `Comprar por ${i.custo} moedas` : 'Moedas insuficientes'}
-                  onClick={() => buy(i.name)}
+                  onClick={() => buy(i)}
                 >
-                  {busy === i.name ? '...' : 'Comprar'}
+                  {busy === i.key ? '...' : 'Comprar'}
                 </Button>
               </span>
             </div>
           )
         })}
-        {filtered.length === 0 && <p className="py-3 text-center text-xs text-purple-400/40">Nada com esse nome.</p>}
+        {filtered.length === 0 && (
+          <p className="py-3 text-center text-xs text-purple-400/40">
+            Nada com esse nome em {CUSTOM_ITEM_KIND_LABELS[tab].toLowerCase()}.
+          </p>
+        )}
       </div>
 
-      {tab === 'armaduras' && <p className="text-[11px] leading-relaxed text-purple-400/50">{ARMOR_NOTE}</p>}
+      {tab === 'armor' && <p className="text-[11px] leading-relaxed text-purple-400/50">{ARMOR_NOTE}</p>}
       <p className="text-[11px] text-purple-400/50">
         A compra sai das suas moedas na hora e aparece no registro da sessão. Armas e armaduras já entram equipadas.
       </p>

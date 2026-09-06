@@ -140,6 +140,15 @@ service cloud.firestore {
         allow read, delete: if isSuperAdmin();
       }
 
+      // Catálogo de itens forjados pelo Mestre. Todos leem — os jogadores
+      // precisam ver o que está à venda na loja e o que receberam —, mas só o
+      // Mestre cria e edita.
+      match /customItems/{itemId} {
+        allow read: if signedIn();
+        allow write: if isGM(tableId);
+        allow delete: if isGM(tableId) || isSuperAdmin();
+      }
+
       // Memória de imagens por nome de criatura (bestiário/personalizada): só
       // o Mestre usa, para lembrar a foto da última vez que editou aquele nome.
       match /monsterImages/{nameLower} {
