@@ -72,6 +72,15 @@ service cloud.firestore {
           isGM(tableId) ||
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ownerUid', 'updatedAt'])
         );
+        // Doação de PV entre companheiros de mesa: qualquer pessoa da mesa pode
+        // *aumentar* os PV de outra ficha, nunca diminuir — o pior que alguém
+        // consegue fazer aqui é curar. O custo sai da ficha de quem doa, que ela
+        // já pode escrever por ser a dona, e as duas escritas vão no mesmo lote.
+        allow update: if signedIn() &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hp', 'isAlive', 'updatedAt']) &&
+          request.resource.data.hp.max == resource.data.hp.max &&
+          request.resource.data.hp.current > resource.data.hp.current &&
+          request.resource.data.hp.current <= resource.data.hp.max;
         allow delete: if isGM(tableId) || resource.data.ownerUid == request.auth.uid || isSuperAdmin();
       }
 

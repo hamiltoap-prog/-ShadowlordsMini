@@ -189,13 +189,30 @@ export async function approveRollRequest(table: GameTable, request: RollRequest,
   return outcome
 }
 
+/** Teto de PV que uma única rolagem pode consumir. */
+export const MAX_HP_ON_ROLL = 10
+
+/** Quantos PV faltam para a rolagem virar sucesso (0 quando já bastou). */
+export function hpNeededForSuccess(request: Pick<RollRequest, 'target' | 'baseTotal'>): number {
+  const target = request.target ?? 13
+  return Math.max(0, target - (request.baseTotal ?? 0))
+}
+
+/**
+ * Quanto o personagem consegue gastar agora: o que falta, limitado pelo teto da
+ * regra e por não poder cair abaixo de 1 PV.
+ */
+export function affordableHpBoost(request: Pick<RollRequest, 'target' | 'baseTotal'>, character: Character): number {
+  return Math.min(hpNeededForSuccess(request), MAX_HP_ON_ROLL, Math.max(0, character.hp.current - 1))
+}
+
 /**
  * Gasto de PV depois de ver a rolagem, para alcançar a dificuldade (pág. 39).
  * Não rola dados novos — apenas soma os PV gastos ao total já obtido.
  */
 export async function spendHpOnRoll(table: GameTable, request: RollRequest, character: Character, hpSpent: number) {
   if (hpSpent <= 0 || request.baseTotal === undefined) return
-  const spent = Math.min(hpSpent, Math.max(0, character.hp.current - 1))
+  const spent = Math.min(hpSpent, MAX_HP_ON_ROLL, Math.max(0, character.hp.current - 1))
   if (spent <= 0) return
   const finalTotal = request.baseTotal + spent
   const target = request.target ?? 13

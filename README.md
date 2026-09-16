@@ -39,6 +39,12 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   volta; o estoque pode ser reabastecido a qualquer momento
 - 🏷️ O nome de cada peça na tela de jogo só aparece ao passar o mouse por cima — com a mesa
   cheia, uma etiqueta embaixo de cada uma tampava o mapa mais do que ajudava
+- ❤️ **PV para o sucesso, já calculados**: quando a rolagem falha por pouco, o campo de gasto
+  vem preenchido com exatamente o que faltou (tirou 11 contra dificuldade 13 → 2 PV), respeitando
+  o teto de 10 PV por rolagem e nunca deixando o personagem abaixo de 1 PV
+- 🤝 **Doação de PV entre companheiros**: no card de cada personagem dá para ceder parte da
+  própria vida a outro da mesa. As duas fichas mudam no mesmo lote (ninguém perde sem o outro
+  receber), quem doa nunca cai a 0 e quem recebe nunca passa do próprio máximo
 - 🩸 A tela de jogo mostra quando alguém está avariado (< 50% PV) ou crítico (< 10% PV) e quais
   condições afetam cada um — sem nunca expor o número exato de PV aos outros jogadores
 - 🌇🌑 **Dia e noite na tela de jogo**: o Mestre alterna entre dia (tom acinzentado avermelhado)
@@ -211,7 +217,8 @@ banco de dados em qualquer uma delas, já que tudo roda no navegador do jogador.
    Atributos são sempre sorteados, como manda o manual — só o Mestre pode ajustá-los depois.
 4. Durante a sessão, toda rolagem do jogador vira um **pedido ao Mestre**, que libera ou nega.
    Quando liberada, os dados aparecem rolando na tela de todo mundo. Se o teste falhou por
-   pouco, o jogador ainda pode gastar PV para alcançar a dificuldade (pág. 39 do manual).
+   pouco, o jogador ainda pode gastar PV para alcançar a dificuldade (pág. 39 do manual) — e o
+   sistema já preenche exatamente quantos faltam, sem ninguém precisar fazer a conta.
 5. O Mestre controla tudo pelo painel: fila de pedidos, NPCs e monstros do Bestiário, combate,
    tabelas aleatórias, loja (liberada só quando o grupo estiver num lugar de comércio) e
    rolagens secretas que ninguém mais vê.

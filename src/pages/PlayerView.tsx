@@ -4,6 +4,7 @@ import { ActionPanel } from '../components/ActionPanel'
 import { ConditionsBadges } from '../components/ConditionsBadges'
 import { ConditionsEditor } from '../components/ConditionsEditor'
 import { DiceOverlay } from '../components/DiceOverlay'
+import { HpDonation } from '../components/HpDonation'
 import { LogFeed } from '../components/LogFeed'
 import { PortraitEditor } from '../components/PortraitEditor'
 import { ShopPanel } from '../components/ShopPanel'
@@ -14,7 +15,7 @@ import { ancestryTraitLabel } from '../lib/ancestry'
 import { totalDefense } from '../lib/characterMath'
 import { RARITY_STYLE, toCarriedArmor, toCarriedWeapon, toInventoryItem } from '../lib/items'
 import type { ShopEntry } from '../lib/items'
-import { listenCharacter, listenCustomItems, updateCharacter } from '../lib/store'
+import { listenCharacter, listenCharacters, listenCustomItems, updateCharacter } from '../lib/store'
 import { ANCESTRY_LABELS, ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
 import type { CarriedItemFlavor, Character, CustomItem, GameTable } from '../types'
 
@@ -37,8 +38,10 @@ export function PlayerView({
   const [noteDraft, setNoteDraft] = useState('')
   const [hpDelta, setHpDelta] = useState(1)
   const [customItems, setCustomItems] = useState<CustomItem[]>([])
+  const [tableChars, setTableChars] = useState<Character[]>([])
 
   useEffect(() => listenCustomItems(table.id, setCustomItems), [table.id])
+  useEffect(() => listenCharacters(table.id, setTableChars), [table.id])
 
   useEffect(() => {
     setCharacter(undefined)
@@ -195,6 +198,11 @@ export function PlayerView({
                   + Curar
                 </Button>
               </div>
+              <HpDonation
+                table={table}
+                character={character}
+                characters={tableChars.filter((c) => c.id !== character.id && c.isAlive)}
+              />
             </div>
             <div>
               <p className="text-xs uppercase text-purple-400/60">Defesa</p>

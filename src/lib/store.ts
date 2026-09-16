@@ -12,6 +12,7 @@ import {
   setDoc,
   updateDoc,
   where,
+  writeBatch,
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import type {
@@ -144,6 +145,38 @@ export async function createCharacter(tableId: string, character: Omit<Character
 
 export async function updateCharacter(tableId: string, characterId: string, patch: Partial<Character>) {
   await updateDoc(doc(charactersCol(tableId), characterId), stripUndefined({ ...patch, updatedAt: Date.now() }))
+}
+
+/**
+ * Doação de PV entre personagens da mesa.
+ *
+ * As duas fichas mudam no mesmo lote, então ninguém perde PV sem o outro
+ * receber. Quem doa nunca cai abaixo de 1 PV (não dá para morrer doando) e
+ * quem recebe nunca passa do próprio máximo. Devolve quanto de fato passou.
+ */
+export async function donateHp(tableId: string, from: Character, to: Character, amount: number): Promise<number> {
+  const give = Math.min(
+    Math.max(0, Math.floor(amount)),
+    Math.max(0, from.hp.current - 1),
+    Math.max(0, to.hp.max - to.hp.current),
+  )
+  if (give <= 0) return 0
+
+  const database = requireDb()
+  const batch = writeBatch(database)
+  const donorHp = from.hp.current - give
+  batch.update(doc(charactersCol(tableId), from.id), {
+    hp: { ...from.hp, current: donorHp },
+    isAlive: donorHp > 0,
+    updatedAt: Date.now(),
+  })
+  batch.update(doc(charactersCol(tableId), to.id), {
+    hp: { ...to.hp, current: to.hp.current + give },
+    isAlive: true,
+    updatedAt: Date.now(),
+  })
+  await batch.commit()
+  return give
 }
 
 export async function deleteCharacter(tableId: string, characterId: string) {

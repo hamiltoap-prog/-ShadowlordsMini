@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { SPELLS } from '../data/spells'
 import { ancestryAttackBonus, ancestryDamageBonus, ancestrySpellBonus } from '../lib/ancestry'
-import { requestRoll, spendHpOnRoll } from '../lib/rollFlow'
+import { MAX_HP_ON_ROLL, affordableHpBoost, hpNeededForSuccess, requestRoll, spendHpOnRoll } from '../lib/rollFlow'
 import { listenCharacters, listenMyRollRequests, listenNPCs } from '../lib/store'
 import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
 import type { AttributeKey, Character, GameTable, NPC, RollRequest } from '../types'
@@ -385,41 +385,63 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
 
 /** Depois de ver o resultado, o jogador pode gastar PV para alcançar a dificuldade. */
 function HpBoost({ table, character, request }: { table: GameTable; character: Character; request: RollRequest }) {
-  const [amount, setAmount] = useState(1)
   const [busy, setBusy] = useState(false)
-  const maxSpend = Math.max(0, character.hp.current - 1)
-  const target = request.target ?? 13
-  const missing = target - (request.baseTotal ?? 0)
+  // Quanto falta é conta fechada: a dificuldade menos o que os dados deram.
+  // Já vem preenchido com exatamente isso, limitado pelo teto de 10 PV da regra
+  // e por não poder deixar o personagem abaixo de 1 PV.
+  const missing = hpNeededForSuccess(request)
+  const suggested = affordableHpBoost(request, character)
+  const maxSpend = Math.min(MAX_HP_ON_ROLL, Math.max(0, character.hp.current - 1))
 
-  if (maxSpend <= 0) return null
+  // O valor mostrado é o sugerido, a menos que a pessoa tenha mexido *nesta*
+  // rolagem. Guardar o id junto faz a conta se refazer sozinha quando chega uma
+  // rolagem nova, sem precisar de um efeito para limpar o estado antigo.
+  const [edited, setEdited] = useState<{ requestId: string; value: number } | null>(null)
+  const amount = edited?.requestId === request.id ? edited.value : suggested
+  const setAmount = (value: number) => setEdited({ requestId: request.id, value })
+
+  if (maxSpend <= 0 || missing <= 0) return null
+
+  const enough = amount >= missing
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-purple-800/50 bg-purple-950/20 px-3 py-2 text-sm">
-      <span className="text-purple-200">
-        Faltaram {missing} ponto{missing > 1 ? 's' : ''}. Gastar PV para virar sucesso?
-      </span>
-      <Input
-        type="number"
-        min={1}
-        max={maxSpend}
-        value={amount}
-        onChange={(e) => setAmount(Math.max(1, Math.min(maxSpend, Number(e.target.value))))}
-        className="w-16"
-      />
-      <Button
-        disabled={busy}
-        onClick={async () => {
-          setBusy(true)
-          try {
-            await spendHpOnRoll(table, request, character, amount)
-          } finally {
-            setBusy(false)
-          }
-        }}
-      >
-        Gastar {amount} PV
-      </Button>
-      <Badge>máx. {maxSpend}</Badge>
+    <div className="flex flex-col gap-1.5 rounded-lg border border-purple-800/50 bg-purple-950/20 px-3 py-2 text-sm">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-purple-200">
+          Faltaram <b className="text-[color:var(--gold-bright)]">{missing}</b> ponto{missing > 1 ? 's' : ''}. Gastar PV
+          para virar sucesso?
+        </span>
+        <Input
+          type="number"
+          min={1}
+          max={maxSpend}
+          value={amount}
+          onChange={(e) => setAmount(Math.max(1, Math.min(maxSpend, Number(e.target.value))))}
+          className="w-16"
+        />
+        <Button
+          variant={enough ? 'primary' : 'secondary'}
+          disabled={busy}
+          onClick={async () => {
+            setBusy(true)
+            try {
+              await spendHpOnRoll(table, request, character, amount)
+            } finally {
+              setBusy(false)
+            }
+          }}
+        >
+          Gastar {amount} PV
+        </Button>
+        <Badge>máx. {maxSpend}</Badge>
+      </div>
+      {!enough && (
+        <p className="text-xs text-amber-300/80">
+          {missing > MAX_HP_ON_ROLL
+            ? `Uma rolagem aceita no máximo ${MAX_HP_ON_ROLL} PV — não dá para cobrir os ${missing} que faltam.`
+            : `Você só pode gastar ${maxSpend} PV agora; ainda faltariam ${missing - amount}.`}
+        </p>
+      )}
     </div>
   )
 }
