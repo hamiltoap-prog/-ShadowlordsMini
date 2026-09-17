@@ -176,6 +176,43 @@ input[type='range'] {
 }
 
 /* Placa de HUD: canto chanfrado, como as molduras do jogo. */
+/* Vez de quem age no combate: um pulso que sai da peça (sonar) mais um brilho
+ * que respira na borda. Dois sinais diferentes porque só o brilho se perde num
+ * mapa claro, e só o sonar se perde num mapa cheio. */
+@keyframes turn-sonar {
+  0% {
+    transform: scale(1);
+    opacity: 0.8;
+  }
+  70%,
+  100% {
+    transform: scale(1.75);
+    opacity: 0;
+  }
+}
+
+@keyframes turn-glow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 3px rgba(240, 230, 210, 0.95),
+      0 0 20px 5px rgba(200, 170, 110, 0.8);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px rgba(200, 170, 110, 0.4),
+      0 0 10px 2px rgba(200, 170, 110, 0.25);
+  }
+}
+
+.animate-turn-sonar {
+  animation: turn-sonar 1.6s ease-out infinite;
+}
+
+.animate-turn-glow {
+  animation: turn-glow 1.2s ease-in-out infinite;
+}
+
 /* Artes do manual original entram como máscara de alfa, não como imagem
  * colorida: assim o mesmo arquivo serve ao modo claro e ao escuro, bastando
  * trocar --art-ink. A URL da arte vai em --art-src, no próprio elemento. */

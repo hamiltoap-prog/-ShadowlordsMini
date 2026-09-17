@@ -174,6 +174,15 @@ export function ScenePage() {
   const columns = sceneGridColumns(scene)
   const rows = Math.max(1, Math.round(columns / aspect))
   const survival = table?.survival
+  /**
+   * De quem é a vez no combate. A ordem guarda `char:<id>` / `npc:<id>`, que é
+   * exatamente o par refType/refId que a peça carrega — por isso dá para
+   * acender a peça certa sem procurar por nome.
+   */
+  const activeCombatant =
+    table?.combatActive && table.combatOrder.length > 0
+      ? table.combatOrder[table.combatTurnIndex % table.combatOrder.length]
+      : undefined
   const myCharacter = characters.find((c) => c.ownerUid === uid)
   /** A malha da névoa acompanha a proporção do palco; se o Mestre mudar o
    *  recorte, o que já foi explorado é reamostrado em vez de se perder. */
@@ -648,6 +657,12 @@ export function ScenePage() {
    * Quem pode arrastar esta peça. O Mestre move tudo; o jogador só move a peça
    * ligada à própria ficha, e só quando o Mestre libera na mesa.
    */
+  /** Esta peça é de quem está agindo agora? */
+  function isActiveTurn(t: SceneToken) {
+    if (!activeCombatant || !t.refType || !t.refId) return false
+    return activeCombatant === `${t.refType === 'character' ? 'char' : 'npc'}:${t.refId}`
+  }
+
   function canDrag(t: SceneToken) {
     if (tool !== 'mover') return false
     if (isGM) return true
@@ -935,6 +950,7 @@ export function ScenePage() {
                   key={t.id}
                   token={t}
                   width={tokenWidth(t, columns)}
+                  activeTurn={isActiveTurn(t)}
                   hiddenFromPlayers={isGM && hiddenInTheDark(t)}
                   characters={characters}
                   npcs={npcs}
@@ -1341,6 +1357,7 @@ function SceneTokenView({
   token: t,
   width,
   draggable,
+  activeTurn = false,
   hiddenFromPlayers = false,
   characters,
   npcs,
@@ -1351,6 +1368,8 @@ function SceneTokenView({
   width: number
   /** Quem está olhando pode arrastar esta peça. */
   draggable: boolean
+  /** É a vez desta criatura no combate — a peça acende para a mesa toda. */
+  activeTurn?: boolean
   /** Só o Mestre está vendo esta criatura: ela está no escuro para os jogadores. */
   hiddenFromPlayers?: boolean
   characters: Character[]
@@ -1370,19 +1389,25 @@ function SceneTokenView({
     <div
       onPointerDown={onPointerDown}
       data-token={t.label}
+      data-active-turn={activeTurn ? '' : undefined}
       className={`group absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-full ${
         isBoss ? 'ring-[5px] animate-boss-glow' : 'ring-2'
-      } ${KIND_STYLE[t.kind]} ${statusRing} ${draggable ? 'cursor-grab active:cursor-grabbing' : ''} ${
-        t.onBoard === false ? 'opacity-40' : hiddenFromPlayers ? 'opacity-60' : ''
-      }`}
+      } ${KIND_STYLE[t.kind]} ${statusRing} ${activeTurn ? 'animate-turn-glow z-[7]' : ''} ${
+        draggable ? 'cursor-grab active:cursor-grabbing' : ''
+      } ${t.onBoard === false ? 'opacity-40' : hiddenFromPlayers ? 'opacity-60' : ''}`}
       style={{
         left: `${t.x * 100}%`,
         top: `${t.y * 100}%`,
         width: `${width * 100}%`,
         aspectRatio: '1 / 1',
       }}
-      title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${hiddenFromPlayers ? ' — escondido dos jogadores (escuridão ou névoa)' : ''}${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
+      title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${activeTurn ? ' — é a vez dele!' : ''}${hiddenFromPlayers ? ' — escondido dos jogadores (escuridão ou névoa)' : ''}${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
     >
+      {/* Pulso saindo da peça, para achar de quem é a vez num mapa cheio. O nome
+          continua só no hover, como nas outras peças. */}
+      {activeTurn && (
+        <span className="animate-turn-sonar pointer-events-none absolute inset-0 rounded-full border-2 border-[color:var(--gold-bright)]" />
+      )}
       {hiddenFromPlayers && (
         <span
           title="Escondido dos jogadores — escuridão ou névoa de guerra"

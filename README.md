@@ -37,6 +37,12 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   uma barra zera, o sistema aplica sozinho a condição (Faminto/Desidratado) e passa a tirar PV
   no ritmo que ele escolheu. Clicar no gráfico gasta um quarto do estoque e enche a barra de
   volta; o estoque pode ser reabastecido a qualquer momento
+- 🎚️ **Status de cada criatura ajustável**: o Bestiário dá o ponto de partida, não a sentença.
+  Com "✎ ajustar status" o Mestre muda Defesa, PV, nome, tamanho no mapa e os ataques daquela
+  criatura — a mesma aranha pode ser uma cria fraca num encontro e uma matriarca no outro, sem
+  mexer no Bestiário nem nas outras cópias dela
+- ⚡ **De quem é a vez** no combate: a peça de quem está agindo pulsa na tela de jogo (um brilho
+  que respira na borda mais um pulso saindo da peça), para o Mestre e para os jogadores
 - 🏷️ O nome de cada peça na tela de jogo só aparece ao passar o mouse por cima — com a mesa
   cheia, uma etiqueta embaixo de cada uma tampava o mapa mais do que ajudava
 - ❤️ **PV para o sucesso, já calculados**: quando a rolagem falha por pouco, o campo de gasto

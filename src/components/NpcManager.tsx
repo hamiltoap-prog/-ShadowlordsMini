@@ -3,7 +3,8 @@ import { BESTIARY, BESTIARY_CATEGORIES } from '../data/bestiary'
 import { roll, roll3d6 } from '../lib/dice'
 import { newId } from '../lib/id'
 import { addLogEntry, createNPC, deleteNPC, listenMonsterImages, setMonsterImage, updateCharacter, updateNPC } from '../lib/store'
-import type { Character, GameTable, NPC } from '../types'
+import { CREATURE_SIZES } from '../types'
+import type { Character, GameTable, NPC, NPCAttack } from '../types'
 import { PortraitEditor } from './PortraitEditor'
 import { SpecialCreatureForm } from './SpecialCreatureForm'
 import { Badge, Button, Card, Input, Select, SectionTitle } from './ui'
@@ -146,12 +147,153 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
   )
 }
 
+/**
+ * Ajuste fino de uma criatura já colocada na mesa.
+ *
+ * O Bestiário dá o ponto de partida, não a sentença: a mesma aranha pode ser
+ * uma cria fraca num encontro e uma matriarca no outro. Aqui o Mestre mexe em
+ * Defesa, PV, tamanho no mapa e nos ataques da criatura *daquela* mesa, sem
+ * tocar no Bestiário nem nas outras cópias dela.
+ */
+function CreatureStats({ table, npc, onClose }: { table: GameTable; npc: NPC; onClose: () => void }) {
+  const [name, setName] = useState(npc.name)
+  const [defense, setDefense] = useState(npc.defense)
+  const [hpMax, setHpMax] = useState(npc.hp.max)
+  const [hpCurrent, setHpCurrent] = useState(npc.hp.current)
+  const [tokenSize, setTokenSize] = useState(npc.tokenSize ?? CREATURE_SIZES[0].size)
+  const [attacks, setAttacks] = useState<NPCAttack[]>(
+    npc.attacks.length ? npc.attacks : [{ id: newId(), name: 'Ataque', dano: '1d6' }],
+  )
+  const [busy, setBusy] = useState(false)
+
+  function patchAttack(id: string, next: Partial<NPCAttack>) {
+    setAttacks((list) => list.map((a) => (a.id === id ? { ...a, ...next } : a)))
+  }
+
+  async function save() {
+    if (!name.trim()) return
+    setBusy(true)
+    try {
+      const max = Math.max(1, hpMax)
+      await updateNPC(table.id, npc.id, {
+        name: name.trim(),
+        defense: Math.max(0, defense),
+        hp: { max, current: Math.max(0, Math.min(max, hpCurrent)) },
+        tokenSize,
+        attacks: attacks
+          .filter((a) => a.name.trim())
+          .map((a) => ({ ...a, name: a.name.trim(), dano: a.dano.trim() || '1d6', note: a.note?.trim() || undefined })),
+      })
+      onClose()
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg border border-[color:var(--gold-dark)] bg-[var(--surface-well)] p-2.5">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-purple-200">
+        <label className="flex items-center gap-1.5">
+          Nome
+          <Input value={name} onChange={(e) => setName(e.target.value)} className="w-36" />
+        </label>
+        <label className="flex items-center gap-1.5">
+          Defesa
+          <Input
+            type="number"
+            min={0}
+            value={defense}
+            onChange={(e) => setDefense(Number(e.target.value))}
+            style={{ width: '4.5rem' }}
+          />
+        </label>
+        <label className="flex items-center gap-1.5">
+          PV
+          <Input
+            type="number"
+            min={0}
+            value={hpCurrent}
+            onChange={(e) => setHpCurrent(Number(e.target.value))}
+            style={{ width: '4.5rem' }}
+          />
+          /
+          <Input
+            type="number"
+            min={1}
+            value={hpMax}
+            onChange={(e) => setHpMax(Number(e.target.value))}
+            style={{ width: '4.5rem' }}
+          />
+        </label>
+        <label className="flex items-center gap-1.5">
+          Tamanho
+          <Select value={tokenSize} onChange={(e) => setTokenSize(Number(e.target.value))} className="w-auto">
+            {CREATURE_SIZES.map((c) => (
+              <option key={c.key} value={c.size}>
+                {c.label}
+              </option>
+            ))}
+          </Select>
+        </label>
+      </div>
+
+      <div className="flex flex-col gap-1.5 border-t border-purple-900/30 pt-2">
+        <div className="flex items-center justify-between">
+          <span className="text-[11px] uppercase tracking-[0.14em] text-purple-400/60">Ataques</span>
+          <Button
+            className="text-xs"
+            onClick={() => setAttacks((list) => [...list, { id: newId(), name: '', dano: '1d6', note: '' }])}
+          >
+            + Ataque
+          </Button>
+        </div>
+        {attacks.map((a) => (
+          <div key={a.id} className="flex flex-wrap items-center gap-1.5">
+            <Input
+              placeholder="Nome do ataque"
+              value={a.name}
+              onChange={(e) => patchAttack(a.id, { name: e.target.value })}
+              className="w-32"
+            />
+            <Input
+              placeholder="2d6"
+              value={a.dano}
+              onChange={(e) => patchAttack(a.id, { dano: e.target.value })}
+              style={{ width: '5rem' }}
+            />
+            <Input
+              placeholder="Efeito (opcional)"
+              value={a.note ?? ''}
+              onChange={(e) => patchAttack(a.id, { note: e.target.value })}
+              className="min-w-[9rem] flex-1"
+            />
+            <button
+              className="text-xs text-red-400 hover:text-red-200"
+              onClick={() => setAttacks((list) => list.filter((x) => x.id !== a.id))}
+            >
+              remover
+            </button>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex gap-2 border-t border-purple-900/30 pt-2">
+        <Button variant="primary" disabled={busy || !name.trim()} onClick={save}>
+          Salvar status
+        </Button>
+        <Button onClick={onClose}>Cancelar</Button>
+      </div>
+    </div>
+  )
+}
+
 function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; characters: Character[] }) {
   const [hpDelta, setHpDelta] = useState(1)
   const [targetId, setTargetId] = useState(characters[0]?.id ?? '')
   const [attackIdx, setAttackIdx] = useState(0)
   const [bonus, setBonus] = useState(0)
   const [editing, setEditing] = useState(false)
+  const [tuning, setTuning] = useState(false)
 
   const target = characters.find((c) => c.id === targetId)
   const attack = npc.attacks[attackIdx]
@@ -298,12 +440,23 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
         </div>
       )}
 
-      <div className="flex items-center gap-2 text-sm text-purple-200">
+      <div className="flex flex-wrap items-center gap-2 text-sm text-purple-200">
         <span>Defesa {npc.defense}</span>
         <span>
           PV {npc.hp.current}/{npc.hp.max}
         </span>
+        {!isSpecial && (
+          <button
+            className="text-xs text-purple-400 hover:text-[color:var(--gold-bright)]"
+            title="Ajustar Defesa, PV, tamanho e ataques desta criatura"
+            onClick={() => setTuning((v) => !v)}
+          >
+            {tuning ? 'fechar ajuste' : '✎ ajustar status'}
+          </button>
+        )}
       </div>
+
+      {tuning && !isSpecial && <CreatureStats table={table} npc={npc} onClose={() => setTuning(false)} />}
       <div className="h-2 overflow-hidden rounded-full bg-black/40">
         <div
           className={`h-full ${npc.hp.current / npc.hp.max > 0.5 ? 'bg-emerald-600' : npc.hp.current / npc.hp.max > 0.2 ? 'bg-amber-500' : 'bg-red-600'}`}
