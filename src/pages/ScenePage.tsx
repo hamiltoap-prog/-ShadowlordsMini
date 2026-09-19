@@ -8,6 +8,7 @@ import { SurvivalControls } from '../components/SurvivalControls'
 import { SurvivalHud } from '../components/SurvivalHud'
 import type { TrackKey } from '../components/SurvivalHud'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
+import { CreatureImage } from '../components/Portrait'
 import { resolveCreaturePortrait } from '../data/creatureArt'
 import { useAuth } from '../hooks/useAuth'
 import { firebaseConfigured } from '../firebase'
@@ -1434,7 +1435,7 @@ function SceneTokenThumb({ token }: { token: SceneToken }) {
       className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full ring-2 ${KIND_STYLE[token.kind]}`}
     >
       {image ? (
-        <img src={image} alt={token.label} className="h-full w-full object-cover" />
+        <CreatureImage url={image} alt={token.label} className="h-full w-full object-cover" />
       ) : (
         <span className="text-[9px] font-semibold text-white">{token.label.slice(0, 4)}</span>
       )}
@@ -1527,7 +1528,7 @@ function SceneTokenView({
         </svg>
       )}
       {image ? (
-        <img src={image} alt={label} className="h-full w-full rounded-full object-cover" draggable={false} />
+        <CreatureImage url={image} alt={label} className="h-full w-full rounded-full object-cover" />
       ) : (
         <span className="flex h-full w-full items-center justify-center text-center text-[10px] font-semibold text-white/70 transition-colors group-hover:text-white">
           {label.slice(0, 3)}
