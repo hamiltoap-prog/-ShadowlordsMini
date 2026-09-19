@@ -46,7 +46,8 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   juntas, com sliders de volume por categoria. Quando um combate começa, a música de combate
   assume sozinha e as outras saem em fade; ao acabar, volta exatamente o que estava tocando. O
   som sai só na tela de jogo, e cada pessoa libera o áudio uma vez (regra de reprodução
-  automática do navegador)
+  automática do navegador — um clique só, no botão "Ligar o som"). Cada faixa tem um **▶ testar**
+  na Mesa de Som, e uma falha aparece escrita na tela em vez de virar silêncio
 - ✎ **Nome do personagem editável** depois de criado, sem perder o acesso à ficha
 - 🎚️ **Status de cada criatura ajustável**: o Bestiário dá o ponto de partida, não a sentença.
   Com "✎ ajustar status" o Mestre muda Defesa, PV, nome, tamanho no mapa e os ataques daquela

@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { parseAudioUrl } from '../lib/audioUrl'
 import { newId } from '../lib/id'
 import { deleteAudioTrack, listenAudioTracks, saveAudioTrack } from '../lib/store'
 import { AUDIO_KINDS, AUDIO_KIND_LABELS } from '../types'
 import type { AudioKind, AudioTrack, GameTable } from '../types'
+import { AudioChannel } from './TableAudio'
+import type { AudioChannelHandle, AudioStatus } from './TableAudio'
 import { Badge, Button, Card, Input, SectionTitle, Select } from './ui'
 
 /**
@@ -49,6 +51,7 @@ export function AudioConsole({ table }: { table: GameTable }) {
       kind,
       label: label.trim(),
       url: parsed.url,
+      altUrls: parsed.altUrls,
       sourceUrl: url.trim(),
       source: parsed.source,
       youtubeId: parsed.youtubeId,
@@ -86,6 +89,12 @@ export function AudioConsole({ table }: { table: GameTable }) {
         </Button>
       </div>
       <p className="text-[11px] text-purple-400/50">{HINTS[kind]}</p>
+      <p className="text-[11px] leading-relaxed text-purple-400/50">
+        <b className="text-purple-300/70">Google Drive:</b> o arquivo precisa estar compartilhado como “qualquer pessoa
+        com o link”, senão o navegador recebe uma página de aviso em vez do som. Se um link teimar em não tocar, o mais
+        garantido é hospedar o MP3 em qualquer lugar que sirva o arquivo direto. Use o <b>▶ testar</b> de cada faixa
+        antes da sessão.
+      </p>
       {error && <p className="text-xs text-red-400">{error}</p>}
 
       <div className="grid gap-3 sm:grid-cols-2">
@@ -98,22 +107,7 @@ export function AudioConsole({ table }: { table: GameTable }) {
                 {SINGLE.includes(k) && <span className="ml-1 text-purple-400/40">(uma faixa)</span>}
               </p>
               {list.map((t) => (
-                <div
-                  key={t.id}
-                  data-audio-item={t.label}
-                  className="flex items-center justify-between gap-2 rounded border border-purple-900/30 bg-black/20 px-2 py-1 text-xs"
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <Badge>{t.source === 'youtube' ? 'YouTube' : 'arquivo'}</Badge>
-                    <span className="truncate text-purple-100">{t.label}</span>
-                  </span>
-                  <button
-                    className="shrink-0 text-red-400 hover:text-red-200"
-                    onClick={() => deleteAudioTrack(table.id, t.id)}
-                  >
-                    ✕
-                  </button>
-                </div>
+                <TrackRow key={t.id} track={t} onDelete={() => deleteAudioTrack(table.id, t.id)} />
               ))}
               {list.length === 0 && <p className="text-xs text-purple-400/40">Nada aqui ainda.</p>}
             </div>
@@ -121,5 +115,76 @@ export function AudioConsole({ table }: { table: GameTable }) {
         })}
       </div>
     </Card>
+  )
+}
+
+/**
+ * Uma faixa da biblioteca, com um teste no lugar.
+ *
+ * Sem isso, um link quebrado só aparecia como silêncio no meio da sessão — que
+ * foi exatamente o que aconteceu na primeira rodada de testes.
+ */
+function TrackRow({ track, onDelete }: { track: AudioTrack; onDelete: () => void }) {
+  const [testing, setTesting] = useState(false)
+  const [status, setStatus] = useState<AudioStatus>({ state: 'idle' })
+  const handle = useRef<AudioChannelHandle | null>(null)
+
+  return (
+    <div
+      data-audio-item={track.label}
+      className="flex flex-col gap-1 rounded border border-purple-900/30 bg-black/20 px-2 py-1 text-xs"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <span className="flex min-w-0 items-center gap-1.5">
+          <Badge>{track.source === 'youtube' ? 'YouTube' : 'arquivo'}</Badge>
+          <span className="truncate text-purple-100">{track.label}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          <button
+            className="text-purple-300 hover:text-[color:var(--gold-bright)]"
+            title="Ouvir esta faixa agora, só na sua tela"
+            onClick={() => {
+              if (testing) {
+                setTesting(false)
+                setStatus({ state: 'idle' })
+                return
+              }
+              // O play tem que sair de dentro do clique.
+              handle.current?.unlock()
+              setTesting(true)
+            }}
+          >
+            {testing ? '■ parar' : '▶ testar'}
+          </button>
+          <button className="text-red-400 hover:text-red-200" onClick={onDelete}>
+            ✕
+          </button>
+        </span>
+      </div>
+
+      {testing && (
+        <p
+          data-test-status={status.state}
+          className={status.state === 'error' ? 'text-red-300' : 'text-purple-300/60'}
+        >
+          {status.state === 'playing' && '🔊 tocando — o link funciona.'}
+          {status.state === 'loading' && 'carregando...'}
+          {status.state === 'idle' && 'começando...'}
+          {status.state === 'error' && `⚠ ${status.message}`}
+        </p>
+      )}
+
+      <AudioChannel
+        label={`test:${track.id}`}
+        track={testing ? track : null}
+        volume={0.5}
+        enabled={testing}
+        preloadYoutube={track.source === 'youtube'}
+        onRegister={(_, h) => {
+          handle.current = h
+        }}
+        onStatus={setStatus}
+      />
+    </div>
   )
 }

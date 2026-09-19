@@ -568,6 +568,8 @@ export interface AudioTrack {
   url: string
   /** Link original, para o Mestre reconhecer o que colou. */
   sourceUrl: string
+  /** Endereços alternativos, tentados se o principal falhar (Drive). */
+  altUrls?: string[]
   source: 'youtube' | 'direct'
   youtubeId?: string
   createdAt: number

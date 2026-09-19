@@ -13,6 +13,12 @@ export interface ParsedAudio {
   source: AudioSource
   /** URL pronta para o `<audio>` (direct) ou o id do vídeo (youtube). */
   url: string
+  /**
+   * Outros endereços para o mesmo arquivo, tentados em ordem se o primeiro
+   * falhar. O Google Drive tem mais de um caminho de download e nem todos
+   * respondem igual — tentar os outros custa pouco e às vezes salva a faixa.
+   */
+  altUrls?: string[]
   youtubeId?: string
 }
 
@@ -75,7 +81,14 @@ export function parseAudioUrl(raw: string): ParsedAudio | null {
 
   const driveId = extractDriveFileId(trimmed)
   if (driveId) {
-    return { source: 'direct', url: `https://drive.usercontent.google.com/download?id=${driveId}&export=download` }
+    return {
+      source: 'direct',
+      url: `https://drive.usercontent.google.com/download?id=${driveId}&export=download`,
+      altUrls: [
+        `https://drive.google.com/uc?export=download&id=${driveId}`,
+        `https://docs.google.com/uc?export=download&id=${driveId}`,
+      ],
+    }
   }
 
   return { source: 'direct', url: trimmed }

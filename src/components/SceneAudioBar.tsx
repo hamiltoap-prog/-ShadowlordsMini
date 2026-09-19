@@ -1,6 +1,7 @@
 import { AUDIO_KIND_LABELS, DEFAULT_AUDIO_VOLUME } from '../types'
 import type { AudioTrack, Scene, SceneAudio } from '../types'
 import type { AudioPlan, AudioVolumes } from '../lib/tableAudio'
+import type { AudioStatus } from './TableAudio'
 import { Badge, Button, Select } from './ui'
 
 /**
@@ -18,6 +19,7 @@ export function SceneAudioBar({
   plan,
   volumes,
   enabled,
+  statuses,
   onEnable,
   onDisable,
   onPatchAudio,
@@ -28,6 +30,8 @@ export function SceneAudioBar({
   plan: AudioPlan
   volumes: AudioVolumes
   enabled: boolean
+  /** Como cada canal está agora — para um erro aparecer em vez de silêncio. */
+  statuses: Record<string, AudioStatus>
   onEnable: () => void
   onDisable: () => void
   onPatchAudio: (patch: Partial<SceneAudio>) => void
@@ -39,6 +43,11 @@ export function SceneAudioBar({
   if (!hasAnything && !isGM) return null
 
   const nowPlaying = [plan.combat?.label, plan.ambience?.label, plan.mood?.label].filter(Boolean).join(' + ')
+  // Um canal que falhou precisa dizer o que houve: silêncio sem explicação foi
+  // o que mais atrapalhou nos primeiros testes.
+  const problems = Object.entries(statuses)
+    .filter(([, s]) => s.state === 'error' && s.message)
+    .map(([, s]) => s.message as string)
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -55,7 +64,15 @@ export function SceneAudioBar({
       )}
 
       {plan.combatTakeover && <Badge tone="bad">⚔️ trilha de combate</Badge>}
-      {enabled && nowPlaying && <span className="text-xs text-purple-300/60">tocando: {nowPlaying}</span>}
+      {enabled && nowPlaying && problems.length === 0 && (
+        <span className="text-xs text-purple-300/60">tocando: {nowPlaying}</span>
+      )}
+      {enabled &&
+        problems.map((p, i) => (
+          <span key={i} className="text-xs text-red-300">
+            ⚠ {p}
+          </span>
+        ))}
       {!hasAnything && isGM && (
         <span className="text-xs text-purple-400/50">Nenhuma faixa ainda — monte a Mesa de Som no painel.</span>
       )}

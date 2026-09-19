@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { AudioChannel } from '../components/TableAudio'
+import type { AudioChannelHandle, AudioStatus } from '../components/TableAudio'
 import { DiceOverlay } from '../components/DiceOverlay'
 import { SceneAudioBar } from '../components/SceneAudioBar'
 import { SurvivalControls } from '../components/SurvivalControls'
@@ -151,6 +152,8 @@ export function ScenePage() {
   const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([])
   /** O navegador só toca som depois de um gesto — daí o botão de liberar. */
   const [audioEnabled, setAudioEnabled] = useState(false)
+  const [audioStatus, setAudioStatus] = useState<Record<string, AudioStatus>>({})
+  const audioHandles = useRef<Record<string, AudioChannelHandle>>({})
   const mapEdit = tool === 'mapa'
   const [announcement, setAnnouncement] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -186,6 +189,7 @@ export function ScenePage() {
   const survival = table?.survival
   const audioPlan = resolveAudioPlan(table, scene, audioTracks)
   const audioVolumes = resolveVolumes(scene)
+  const hasYoutubeTrack = audioTracks.some((t) => t.source === 'youtube')
   /**
    * De quem é a vez no combate. A ordem guarda `char:<id>` / `npc:<id>`, que é
    * exatamente o par refType/refId que a peça carrega — por isso dá para
@@ -379,6 +383,21 @@ export function ScenePage() {
     }
     img.src = scene.backgroundUrl
   }, [isGM, scene, persist])
+
+  /**
+   * Liberar o som precisa acontecer *dentro* do clique: é o gesto que o
+   * navegador exige. Por isso os canais são acionados aqui, e não num efeito
+   * depois que o estado mudou — que em celular já não vale como gesto.
+   */
+  function enableAudio() {
+    for (const handle of Object.values(audioHandles.current)) handle.unlock()
+    setAudioEnabled(true)
+  }
+
+  function registerAudioChannel(label: string, handle: AudioChannelHandle | null) {
+    if (handle) audioHandles.current[label] = handle
+    else delete audioHandles.current[label]
+  }
 
   function patchAudio(patch: Partial<SceneAudio>) {
     persist({ ...scene, audio: { ...scene.audio, ...patch } })
@@ -769,7 +788,8 @@ export function ScenePage() {
           plan={audioPlan}
           volumes={audioVolumes}
           enabled={audioEnabled}
-          onEnable={() => setAudioEnabled(true)}
+          statuses={audioStatus}
+          onEnable={enableAudio}
           onDisable={() => setAudioEnabled(false)}
           onPatchAudio={patchAudio}
         />
@@ -779,9 +799,26 @@ export function ScenePage() {
           espera para o som começar junto com a cena. */}
       {!showWaitingScreen && (
         <>
-          <AudioChannel label="ambience" track={audioPlan.ambience} volume={audioVolumes.ambience} enabled={audioEnabled} />
-          <AudioChannel label="mood" track={audioPlan.mood} volume={audioVolumes.mood} enabled={audioEnabled} />
-          <AudioChannel label="combat" track={audioPlan.combat} volume={audioVolumes.combat} enabled={audioEnabled} />
+          {(
+            [
+              ['ambience', audioPlan.ambience, audioVolumes.ambience],
+              ['mood', audioPlan.mood, audioVolumes.mood],
+              ['combat', audioPlan.combat, audioVolumes.combat],
+            ] as [string, typeof audioPlan.ambience, number][]
+          ).map(([name, track, vol]) => (
+            <AudioChannel
+              key={name}
+              label={name}
+              track={track}
+              volume={vol}
+              enabled={audioEnabled}
+              // O player do YouTube é criado de saída se a mesa tem qualquer
+              // faixa de lá: ele precisa estar pronto quando o clique chegar.
+              preloadYoutube={hasYoutubeTrack}
+              onRegister={registerAudioChannel}
+              onStatus={(st) => setAudioStatus((prev) => (prev[name]?.state === st.state && prev[name]?.message === st.message ? prev : { ...prev, [name]: st }))}
+            />
+          ))}
         </>
       )}
 
