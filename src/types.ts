@@ -571,6 +571,8 @@ export interface AudioTrack {
   /** Endereços alternativos, tentados se o principal falhar (Drive). */
   altUrls?: string[]
   source: 'youtube' | 'direct'
+  /** De onde o link veio — usado para explicar direito quando não toca. */
+  provider?: 'youtube' | 'drive' | 'dropbox' | 'onedrive' | 'github' | 'other'
   youtubeId?: string
   createdAt: number
 }

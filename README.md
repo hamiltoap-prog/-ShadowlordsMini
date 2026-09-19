@@ -40,7 +40,8 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   uma barra zera, o sistema aplica sozinho a condição (Faminto/Desidratado) e passa a tirar PV
   no ritmo que ele escolheu. Clicar no gráfico gasta um quarto do estoque e enche a barra de
   volta; o estoque pode ser reabastecido a qualquer momento
-- 🔊 **Mesa de som**: o Mestre monta a trilha da campanha por link (YouTube ou Google Drive) em
+- 🔊 **Mesa de som**: o Mestre monta a trilha da campanha por link (YouTube, ou qualquer endereço
+  que sirva o arquivo de áudio — Dropbox, OneDrive e GitHub são convertidos sozinhos ao colar) em
   quatro gavetas — **Ambientação** (fundo em looping), **Clima** (o tom da cena), **Combate** e
   **Combate de Chefe**. Na tela de jogo ele escolhe uma de ambientação e uma de clima, que tocam
   juntas, com sliders de volume por categoria. Quando um combate começa, a música de combate
@@ -93,9 +94,10 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   hora ("Envergadura: 40 metros") e tamanho no mapa até colossal. Editável a qualquer momento
 - 🖼️ **Imagens de monstro memorizadas por nome**: edite a foto de uma criatura uma vez e toda
   futura adição do mesmo nome (bestiário ou personalizada) já vem com aquela imagem
-- 🔗 **Links do Google Drive funcionam direto**: cole o link de compartilhamento comum
+- 🔗 **Links do Google Drive funcionam direto em imagens**: cole o link de compartilhamento comum
   (`.../file/d/ID/view`) em qualquer campo de foto ou imagem — ele é convertido automaticamente
-  para o formato que carrega de verdade
+  para o formato que carrega de verdade. Para **áudio** o Drive não serve: ele responde com uma
+  página de aviso em vez do arquivo, mesmo com o link público. Use YouTube na Mesa de Som
 - ⚔️ Criação de personagem escolhendo cada opção (ou sorteando nos dados), com foto de perfil.
   Cada Origem tem um ícone "ⓘ" com mais informações sobre aquele lugar do cenário do manual
 - 🔨 **Forja de itens do Mestre**: crie armas, armaduras e equipamentos próprios da campanha —

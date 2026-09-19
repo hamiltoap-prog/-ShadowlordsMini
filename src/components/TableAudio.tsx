@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
+import { DRIVE_WARNING, parseAudioUrl } from '../lib/audioUrl'
 import type { AudioTrack } from '../types'
 
 /**
  * Um canal de som da mesa (ambientação, clima ou combate).
  *
  * Duas fontes possíveis, com a mesma interface para quem usa: um `<audio>` para
- * arquivo direto (inclusive Drive) e o player embutido do YouTube, que é o
+ * arquivo direto e o player embutido do YouTube, que é o
  * único jeito de tocar um vídeo de lá. Toda troca passa por fade — entrar e
  * sair na unha estoura no ouvido de quem está jogando.
  *
@@ -78,9 +79,25 @@ const YT_ERRORS: Record<number, string> = {
 
 const MEDIA_ERRORS: Record<number, string> = {
   1: 'A reprodução foi interrompida.',
-  2: 'Falha de rede ao buscar o arquivo — confira se o link é público.',
+  2: 'Falha de rede ao buscar o arquivo — o endereço não respondeu.',
   3: 'O arquivo chegou, mas o navegador não conseguiu decodificá-lo.',
-  4: 'O link não devolveu um áudio que o navegador saiba tocar (no Drive, isso quase sempre é arquivo não compartilhado como "qualquer pessoa com o link").',
+  4: 'O endereço não devolveu um áudio que o navegador saiba tocar — provavelmente veio uma página em vez do arquivo.',
+}
+
+/**
+ * De onde veio a faixa. Faixas salvas antes de guardarmos isso não têm o campo,
+ * então caímos no endereço — o que importa é reconhecer o Drive.
+ */
+function trackProvider(t: AudioTrack | null | undefined): string | undefined {
+  if (!t) return undefined
+  if (t.provider) return t.provider
+  return parseAudioUrl(t.sourceUrl || t.url)?.provider
+}
+
+/** O Drive tem uma explicação própria: o problema não é permissão, é ele mesmo. */
+function mediaErrorMessage(code: number, provider?: string): string {
+  if (provider === 'drive') return DRIVE_WARNING
+  return MEDIA_ERRORS[code] ?? 'Não consegui tocar este link.'
 }
 
 export function AudioChannel({
@@ -317,7 +334,7 @@ export function AudioChannel({
             startTrack(false)
             return
           }
-          report({ state: 'error', message: MEDIA_ERRORS[code] ?? 'Não consegui tocar este link.' })
+          report({ state: 'error', message: mediaErrorMessage(code, trackProvider(trackRef.current)) })
         }}
       />
       <span ref={ytHost} className="hidden" />

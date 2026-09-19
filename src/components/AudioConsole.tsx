@@ -31,6 +31,11 @@ export function AudioConsole({ table }: { table: GameTable }) {
   const [label, setLabel] = useState('')
   const [url, setUrl] = useState('')
   const [error, setError] = useState('')
+  /** Faixa recém-adicionada: testada sozinha, para o Mestre não descobrir na sessão. */
+  const [justAdded, setJustAdded] = useState<string | null>(null)
+
+  // O aviso do link aparece enquanto se digita, não depois de salvar.
+  const preview = parseAudioUrl(url)
 
   useEffect(() => listenAudioTracks(table.id, setTracks), [table.id])
 
@@ -45,8 +50,12 @@ export function AudioConsole({ table }: { table: GameTable }) {
     if (SINGLE.includes(kind)) {
       await Promise.all(tracks.filter((t) => t.kind === kind).map((t) => deleteAudioTrack(table.id, t.id)))
     }
+    const id = newId()
+    // Marcado antes de salvar: o Firestore avisa a lista na hora, e a linha
+    // precisa já nascer sabendo que é a faixa recém-adicionada.
+    setJustAdded(id)
     await saveAudioTrack(table.id, {
-      id: newId(),
+      id,
       tableId: table.id,
       kind,
       label: label.trim(),
@@ -54,6 +63,7 @@ export function AudioConsole({ table }: { table: GameTable }) {
       altUrls: parsed.altUrls,
       sourceUrl: url.trim(),
       source: parsed.source,
+      provider: parsed.provider,
       youtubeId: parsed.youtubeId,
       createdAt: Date.now(),
     })
@@ -81,7 +91,7 @@ export function AudioConsole({ table }: { table: GameTable }) {
         <Input
           value={url}
           onChange={(e) => setUrl(e.target.value)}
-          placeholder="Link do YouTube ou do Google Drive"
+          placeholder="Link do YouTube ou do arquivo de áudio"
           className="min-w-[14rem] flex-1"
         />
         <Button variant="primary" onClick={add}>
@@ -89,10 +99,23 @@ export function AudioConsole({ table }: { table: GameTable }) {
         </Button>
       </div>
       <p className="text-[11px] text-purple-400/50">{HINTS[kind]}</p>
+
+      {preview?.warning && (
+        <p className="rounded border border-amber-700/50 bg-amber-950/20 p-2 text-[11px] leading-relaxed text-amber-200">
+          ⚠ {preview.warning}
+        </p>
+      )}
+      {preview && preview.provider !== 'other' && preview.provider !== 'drive' && (
+        <p className="text-[11px] text-emerald-300/80">
+          ✓ Link reconhecido ({preview.provider === 'youtube' ? 'YouTube' : preview.provider}) e convertido para o
+          formato que toca.
+        </p>
+      )}
+
       <p className="text-[11px] leading-relaxed text-purple-400/50">
-        <b className="text-purple-300/70">Google Drive:</b> o arquivo precisa estar compartilhado como “qualquer pessoa
-        com o link”, senão o navegador recebe uma página de aviso em vez do som. Se um link teimar em não tocar, o mais
-        garantido é hospedar o MP3 em qualquer lugar que sirva o arquivo direto. Use o <b>▶ testar</b> de cada faixa
+        <b className="text-purple-300/70">O que funciona:</b> links do <b>YouTube</b>, e qualquer endereço que devolva o
+        arquivo direto — Dropbox, OneDrive e GitHub são convertidos sozinhos ao colar. <b>O Google Drive não serve</b>:
+        ele não deixa outros sites tocarem o arquivo, mesmo público. Toda faixa tem um <b>▶ testar</b> logo abaixo — use
         antes da sessão.
       </p>
       {error && <p className="text-xs text-red-400">{error}</p>}
@@ -107,7 +130,12 @@ export function AudioConsole({ table }: { table: GameTable }) {
                 {SINGLE.includes(k) && <span className="ml-1 text-purple-400/40">(uma faixa)</span>}
               </p>
               {list.map((t) => (
-                <TrackRow key={t.id} track={t} onDelete={() => deleteAudioTrack(table.id, t.id)} />
+                <TrackRow
+                  key={t.id}
+                  track={t}
+                  autoTest={t.id === justAdded}
+                  onDelete={() => deleteAudioTrack(table.id, t.id)}
+                />
               ))}
               {list.length === 0 && <p className="text-xs text-purple-400/40">Nada aqui ainda.</p>}
             </div>
@@ -124,10 +152,28 @@ export function AudioConsole({ table }: { table: GameTable }) {
  * Sem isso, um link quebrado só aparecia como silêncio no meio da sessão — que
  * foi exatamente o que aconteceu na primeira rodada de testes.
  */
-function TrackRow({ track, onDelete }: { track: AudioTrack; onDelete: () => void }) {
-  const [testing, setTesting] = useState(false)
+function TrackRow({
+  track,
+  autoTest = false,
+  onDelete,
+}: {
+  track: AudioTrack
+  /** Faixa recém-adicionada: já entra testando. */
+  autoTest?: boolean
+  onDelete: () => void
+}) {
+  const [testing, setTesting] = useState(autoTest)
   const [status, setStatus] = useState<AudioStatus>({ state: 'idle' })
   const handle = useRef<AudioChannelHandle | null>(null)
+
+  // A linha pode nascer antes do "acabei de adicionar" chegar — nesse caso o
+  // teste começa aqui. Depois de parado à mão, não volta a ligar sozinho.
+  const startedAuto = useRef(false)
+  useEffect(() => {
+    if (!autoTest || startedAuto.current) return
+    startedAuto.current = true
+    setTesting(true)
+  }, [autoTest])
 
   return (
     <div
