@@ -53,7 +53,11 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
 - 🖼️ **Arte oficial das criaturas**: as 42 ilustrações do Bestiário vêm junto. Adicionou do
   Bestiário, a criatura já chega com a sua — na ficha, na peça do mapa e na lista de referência,
   igual para toda mesa e sem opção de trocar. Criatura de fora do Bestiário continua com a foto
-  que o Mestre quiser
+  que o Mestre quiser.
+  **Trocou as imagens na pasta de artes?** Mude também o `ART_VERSION` em
+  `src/data/creatureArt.ts` e publique. Substituir o conteúdo de um arquivo no Drive não muda o
+  id dele, então o endereço continua o mesmo e o navegador entrega a cópia velha — esse selo é o
+  que avisa a mesa toda que vale a pena buscar de novo
 - 🎚️ **Status de cada criatura ajustável**: o Bestiário dá o ponto de partida, não a sentença.
   Com "✎ ajustar status" o Mestre muda Defesa, PV, nome, tamanho no mapa e os ataques daquela
   criatura — a mesma aranha pode ser uma cria fraca num encontro e uma matriarca no outro, sem

@@ -24,8 +24,8 @@ export function Portrait({
   const [fullSize, setFullSize] = useState(false)
   const initial = name.trim().charAt(0).toUpperCase() || '?'
   const style = { width: size, height: size }
-  const sized = url?.match(/^(.*\/d\/[^=]+)=w\d+$/)
-  const src = fullSize && sized ? sized[1] : url
+  const sized = url?.match(/^(.*\/d\/[^=?]+)=w\d+(\?.*)?$/)
+  const src = fullSize && sized ? sized[1] + (sized[2] ?? '') : url
 
   if (!url || failed) {
     return (
@@ -71,12 +71,12 @@ export function CreatureImage({
 }) {
   const [failed, setFailed] = useState(false)
   const [fullSize, setFullSize] = useState(false)
-  const sized = url.match(/^(.*\/d\/[^=]+)=w\d+$/)
+  const sized = url.match(/^(.*\/d\/[^=?]+)=w\d+(\?.*)?$/)
 
   if (failed) return null
   return (
     <img
-      src={fullSize && sized ? sized[1] : url}
+      src={fullSize && sized ? sized[1] + (sized[2] ?? '') : url}
       alt={alt}
       draggable={false}
       onError={() => {

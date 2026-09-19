@@ -85,11 +85,26 @@ const ART_FILE_IDS: Record<string, string> = {
 export const ART_THUMB_WIDTH = 160
 export const ART_FULL_WIDTH = 640
 
+/**
+ * Versão da pasta de artes.
+ *
+ * Trocar o conteúdo de um arquivo no Drive não muda o id dele, então o endereço
+ * que o app pede continua igual ao de antes — e navegador e cache de imagem do
+ * Google continuam entregando a cópia que já tinham. A arte nova ficava presa
+ * na pasta sem ninguém ir buscar.
+ *
+ * Este selo entra no fim do endereço só para ele ficar diferente. **Ao trocar
+ * as imagens da pasta, mude esta linha**: é o que faz a mesa toda baixar de
+ * novo. (A data é só para a gente se localizar; qualquer texto diferente do
+ * anterior serve.)
+ */
+const ART_VERSION = '2026-09-19-23h25'
+
 /** A ilustração oficial desta criatura, se ela for do Bestiário. */
 export function creatureArtUrl(name: string | undefined, width = ART_FULL_WIDTH): string | undefined {
   if (!name) return undefined
   const id = ART_FILE_IDS[creatureKey(name)]
-  return id ? `https://lh3.googleusercontent.com/d/${id}=w${width}` : undefined
+  return id ? `https://lh3.googleusercontent.com/d/${id}=w${width}?v=${ART_VERSION}` : undefined
 }
 
 /** A foto que vale para uma criatura: a oficial manda, a do Mestre completa. */
