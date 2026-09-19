@@ -4,6 +4,7 @@ import { ApprovalPanel } from '../components/ApprovalPanel'
 import { CombatTracker } from '../components/CombatTracker'
 import { DiceOverlay } from '../components/DiceOverlay'
 import { GMDiceRoller } from '../components/GMDiceRoller'
+import { AudioConsole } from '../components/AudioConsole'
 import { ItemForge } from '../components/ItemForge'
 import { LogFeed } from '../components/LogFeed'
 import { NpcManager } from '../components/NpcManager'
@@ -93,7 +94,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
             ['personagens', `Personagens (${players.length})`],
             ['npcs', `NPCs (${gmCharacters.length + npcs.length})`],
             ['combate', 'Combate'],
-            ['itens', 'Itens'],
+            ['itens', 'Itens & Som'],
             ['tabelas', 'Tabelas & Referência'],
             ['config', 'Configurações'],
           ] as [Tab, string][]
@@ -301,7 +302,12 @@ export function GMDashboard({ table }: { table: GameTable }) {
         </div>
       )}
       {tab === 'combate' && <CombatTracker table={table} characters={characters} npcs={npcs} />}
-      {tab === 'itens' && <ItemForge table={table} characters={characters} />}
+      {tab === 'itens' && (
+        <div className="flex flex-col gap-4">
+          <ItemForge table={table} characters={characters} />
+          <AudioConsole table={table} />
+        </div>
+      )}
       {tab === 'tabelas' && <ReferenceBrowser table={table} actorName={table.gmNickname} />}
       {tab === 'config' && <TableSettings table={table} />}
     </div>

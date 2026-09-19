@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { AudioChannel } from '../components/TableAudio'
+import { DiceOverlay } from '../components/DiceOverlay'
+import { SceneAudioBar } from '../components/SceneAudioBar'
 import { SurvivalControls } from '../components/SurvivalControls'
 import { SurvivalHud } from '../components/SurvivalHud'
 import type { TrackKey } from '../components/SurvivalHud'
@@ -26,6 +29,7 @@ import {
   tokenWidth,
 } from '../lib/sceneGeometry'
 import { computeSurvivalEffects, consume } from '../lib/survival'
+import { resolveAudioPlan, resolveVolumes } from '../lib/tableAudio'
 import { resolveTokenStatus } from '../lib/tokenStatus'
 import {
   addSceneLibraryItem,
@@ -35,6 +39,7 @@ import {
   listenCharacters,
   listenNPCs,
   listenScene,
+  listenAudioTracks,
   listenSceneLibrary,
   listenScenePings,
   listenTable,
@@ -45,6 +50,7 @@ import {
 } from '../lib/store'
 import { CREATURE_SIZES, PING_LIFETIME_MS, SCENE_TOKEN_LABELS, emptySurvival } from '../types'
 import type {
+  AudioTrack,
   Character,
   GameTable,
   NPC,
@@ -53,6 +59,7 @@ import type {
   SceneLibraryItem,
   SceneMap,
   ScenePing,
+  SceneAudio,
   SceneToken,
   SceneTokenKind,
   SurvivalState,
@@ -141,6 +148,9 @@ export function ScenePage() {
   const [ruler, setRuler] = useState<{ from: Point; to: Point } | null>(null)
   const [pings, setPings] = useState<ScenePing[]>([])
   const [survivalOpen, setSurvivalOpen] = useState(false)
+  const [audioTracks, setAudioTracks] = useState<AudioTrack[]>([])
+  /** O navegador só toca som depois de um gesto — daí o botão de liberar. */
+  const [audioEnabled, setAudioEnabled] = useState(false)
   const mapEdit = tool === 'mapa'
   const [announcement, setAnnouncement] = useState<string | null>(null)
   const [now, setNow] = useState(() => Date.now())
@@ -174,6 +184,8 @@ export function ScenePage() {
   const columns = sceneGridColumns(scene)
   const rows = Math.max(1, Math.round(columns / aspect))
   const survival = table?.survival
+  const audioPlan = resolveAudioPlan(table, scene, audioTracks)
+  const audioVolumes = resolveVolumes(scene)
   /**
    * De quem é a vez no combate. A ordem guarda `char:<id>` / `npc:<id>`, que é
    * exatamente o par refType/refId que a peça carrega — por isso dá para
@@ -258,6 +270,11 @@ export function ScenePage() {
 
   // Marcações do mapa: entram, piscam e saem sozinhas. Guardamos as já vistas
   // para uma marcação antiga não voltar a piscar quando o listener recarrega.
+  useEffect(() => {
+    if (!firebaseConfigured) return
+    return listenAudioTracks(tableId, setAudioTracks)
+  }, [tableId])
+
   useEffect(() => {
     if (!firebaseConfigured) return
     return listenScenePings(tableId, (list) => {
@@ -362,6 +379,10 @@ export function ScenePage() {
     }
     img.src = scene.backgroundUrl
   }, [isGM, scene, persist])
+
+  function patchAudio(patch: Partial<SceneAudio>) {
+    persist({ ...scene, audio: { ...scene.audio, ...patch } })
+  }
 
   function patchMap(patch: Partial<SceneMap>) {
     persist({ ...scene, map: { ...map, ...patch } })
@@ -696,6 +717,11 @@ export function ScenePage() {
 
   return (
     <div className="flex min-h-screen flex-col gap-3 p-3">
+      {/* A animação de dados também roda aqui — é onde a mesa está olhando. As
+          rolagens secretas do Mestre ficam de fora, porque só entram no log
+          secreto, que esta tela não escuta. */}
+      <DiceOverlay tableId={tableId} isGM={false} />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <h1 className="font-serif text-xl text-purple-100">Tela de Jogo — {table.name}</h1>
@@ -733,6 +759,30 @@ export function ScenePage() {
             </>
           )}
         </div>
+      )}
+
+      {!showWaitingScreen && (
+        <SceneAudioBar
+          isGM={isGM}
+          tracks={audioTracks}
+          scene={scene}
+          plan={audioPlan}
+          volumes={audioVolumes}
+          enabled={audioEnabled}
+          onEnable={() => setAudioEnabled(true)}
+          onDisable={() => setAudioEnabled(false)}
+          onPatchAudio={patchAudio}
+        />
+      )}
+
+      {/* Os canais em si não desenham nada — só tocam. Ficam fora da tela de
+          espera para o som começar junto com a cena. */}
+      {!showWaitingScreen && (
+        <>
+          <AudioChannel label="ambience" track={audioPlan.ambience} volume={audioVolumes.ambience} enabled={audioEnabled} />
+          <AudioChannel label="mood" track={audioPlan.mood} volume={audioVolumes.mood} enabled={audioEnabled} />
+          <AudioChannel label="combat" track={audioPlan.combat} volume={audioVolumes.combat} enabled={audioEnabled} />
+        </>
       )}
 
       {!showWaitingScreen && (
@@ -1377,6 +1427,9 @@ function SceneTokenView({
   onPointerDown: (e: React.PointerEvent) => void
 }) {
   const status = resolveTokenStatus(t.refType, t.refId, characters, npcs)
+  // A peça guarda o nome de quando foi colocada; se a ficha foi renomeada
+  // depois, quem manda é o nome de agora.
+  const label = status?.name ?? t.label
   const isBoss = t.kind === 'boss'
   const statusRing =
     status?.tier === 'critical'
@@ -1388,7 +1441,7 @@ function SceneTokenView({
   return (
     <div
       onPointerDown={onPointerDown}
-      data-token={t.label}
+      data-token={label}
       data-active-turn={activeTurn ? '' : undefined}
       className={`group absolute -translate-x-1/2 -translate-y-1/2 select-none rounded-full ${
         isBoss ? 'ring-[5px] animate-boss-glow' : 'ring-2'
@@ -1401,7 +1454,7 @@ function SceneTokenView({
         width: `${width * 100}%`,
         aspectRatio: '1 / 1',
       }}
-      title={`${t.label} (${SCENE_TOKEN_LABELS[t.kind]})${activeTurn ? ' — é a vez dele!' : ''}${hiddenFromPlayers ? ' — escondido dos jogadores (escuridão ou névoa)' : ''}${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
+      title={`${label} (${SCENE_TOKEN_LABELS[t.kind]})${activeTurn ? ' — é a vez dele!' : ''}${hiddenFromPlayers ? ' — escondido dos jogadores (escuridão ou névoa)' : ''}${status?.tier === 'hurt' ? ' — avariado' : status?.tier === 'critical' ? ' — crítico' : ''}${status?.conditions.length ? ` · ${status.conditions.join(', ')}` : ''}`}
     >
       {/* Pulso saindo da peça, para achar de quem é a vez num mapa cheio. O nome
           continua só no hover, como nas outras peças. */}
@@ -1435,7 +1488,7 @@ function SceneTokenView({
         <img src={t.imageUrl} alt={t.label} className="h-full w-full rounded-full object-cover" draggable={false} />
       ) : (
         <span className="flex h-full w-full items-center justify-center text-center text-[10px] font-semibold text-white/70 transition-colors group-hover:text-white">
-          {t.label.slice(0, 3)}
+          {label.slice(0, 3)}
         </span>
       )}
       {status && status.tier !== 'ok' && (
@@ -1455,7 +1508,7 @@ function SceneTokenView({
       {/* O nome só aparece ao passar o mouse: com a mesa cheia, uma etiqueta
           embaixo de cada peça tampava o mapa mais do que ajudava. */}
       <span className="pointer-events-none absolute -bottom-5 left-1/2 z-[11] -translate-x-1/2 whitespace-nowrap rounded border border-[color:var(--gold-dark)] bg-black/85 px-1.5 text-[10px] text-purple-100 opacity-0 transition-opacity duration-150 group-hover:opacity-100">
-        {t.label}
+        {label}
       </span>
     </div>
   )

@@ -15,6 +15,8 @@ export interface TokenLiveStatus {
   tier: StatusTier
   conditions: string[]
   isAlive?: boolean
+  /** Nome atual da ficha — a peça pode ter sido colocada antes de um "renomear". */
+  name: string
 }
 
 /** Busca o status ao vivo (PV/condições) de quem um token da cena representa. */
@@ -28,9 +30,14 @@ export function resolveTokenStatus(
   if (refType === 'character') {
     const c = characters.find((x) => x.id === refId)
     if (!c) return null
-    return { tier: hpStatusTier(c.hp.current, c.hp.max), conditions: (c.conditions ?? []).map((cond) => cond.label), isAlive: c.isAlive }
+    return {
+      tier: hpStatusTier(c.hp.current, c.hp.max),
+      conditions: (c.conditions ?? []).map((cond) => cond.label),
+      isAlive: c.isAlive,
+      name: c.name,
+    }
   }
   const n = npcs.find((x) => x.id === refId)
   if (!n) return null
-  return { tier: hpStatusTier(n.hp.current, n.hp.max), conditions: [] }
+  return { tier: hpStatusTier(n.hp.current, n.hp.max), conditions: [], name: n.name }
 }

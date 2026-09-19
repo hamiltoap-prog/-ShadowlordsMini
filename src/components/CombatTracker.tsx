@@ -74,15 +74,19 @@ export function CombatTracker({ table, characters, npcs }: { table: GameTable; c
     await updateTable(table.id, { combatOrder: newOrder })
   }
 
-  async function startCombat() {
-    await updateTable(table.id, { combatActive: true, combatTurnIndex: 0 })
-    await logNote(actor, '⚔️ Combate iniciado!', 'table')
+  /**
+   * Um combate de chefe segue exatamente as mesmas regras — o que muda é a
+   * trilha: a tela de jogo troca para a música de chefe enquanto ele durar.
+   */
+  async function startCombat(kind: 'normal' | 'boss') {
+    await updateTable(table.id, { combatActive: true, combatTurnIndex: 0, combatKind: kind })
+    await logNote(actor, kind === 'boss' ? '👑 Batalha de Chefe iniciada!' : '⚔️ Combate iniciado!', 'table')
     const first = order[0] ? entityInfo(order[0], characters, npcs) : null
     if (first) await logNote(actor, `Turno de ${first.name}`, 'table')
   }
 
   async function endCombat() {
-    await updateTable(table.id, { combatActive: false })
+    await updateTable(table.id, { combatActive: false, combatKind: 'normal' })
     await logNote(actor, 'Combate encerrado.', 'table')
   }
 
@@ -99,7 +103,7 @@ export function CombatTracker({ table, characters, npcs }: { table: GameTable; c
       <div className="flex items-center justify-between">
         <SectionTitle>Rastreador de Combate</SectionTitle>
         {table.combatActive ? (
-          <Badge tone="bad">Em combate</Badge>
+          <Badge tone="bad">{table.combatKind === 'boss' ? '👑 Batalha de Chefe' : 'Em combate'}</Badge>
         ) : (
           <Badge>Fora de combate</Badge>
         )}
@@ -186,9 +190,19 @@ export function CombatTracker({ table, characters, npcs }: { table: GameTable; c
 
       <div className="flex gap-2">
         {!table.combatActive ? (
-          <Button variant="primary" onClick={startCombat} disabled={order.length === 0}>
-            Iniciar Combate
-          </Button>
+          <>
+            <Button variant="primary" onClick={() => startCombat('normal')} disabled={order.length === 0}>
+              Iniciar Combate
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => startCombat('boss')}
+              disabled={order.length === 0}
+              title="Mesmas regras — muda a música na tela de jogo"
+            >
+              👑 Iniciar Batalha de Chefe
+            </Button>
+          </>
         ) : (
           <>
             <Button variant="primary" onClick={nextTurn}>

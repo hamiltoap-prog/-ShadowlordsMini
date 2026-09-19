@@ -292,6 +292,8 @@ export interface GameTable {
   combatActive: boolean
   combatOrder: string[] // ids: `char:<id>` ou `npc:<id>`
   combatTurnIndex: number
+  /** 'boss' troca só a música: as regras do combate continuam as mesmas. */
+  combatKind?: 'normal' | 'boss'
   /** Quando aberta, jogadores podem comprar itens/armas na loja. */
   shopOpen: boolean
   /** Quando ligado, toda rolagem de jogador precisa da aprovação do Mestre. */
@@ -374,8 +376,10 @@ export interface LogEntry {
   rolls?: number[]
   total?: number
   success?: boolean
-  /** Dados a exibir na animação (valores de cada d6 rolado). */
+  /** Dados a exibir na animação (o valor de cada dado rolado). */
   dice?: number[]
+  /** Quantos lados tinha cada dado da animação. Ausente = d6, como era antes. */
+  diceSides?: number
   /** Rótulo curto mostrado no overlay de dados, ex: "Ataque". */
   diceLabel?: string
 }
@@ -533,7 +537,55 @@ export interface Scene {
   showGrid?: boolean
   /** Névoa de guerra: o que o grupo já explorou. */
   fog?: SceneFog
+  /** Trilha sonora no ar, tocada só na tela de jogo. */
+  audio?: SceneAudio
 }
+
+// ---------- Mesa de som ----------
+
+/**
+ * Onde cada faixa entra na sessão.
+ * - `ambience`: fundo em looping (floresta, chuva, taverna)
+ * - `mood`: o clima da cena (tenso, alegre, solene)
+ * - `combat` / `boss`: assumem sozinhas quando o combate começa
+ */
+export const AUDIO_KINDS = ['ambience', 'mood', 'combat', 'boss'] as const
+export type AudioKind = (typeof AUDIO_KINDS)[number]
+
+export const AUDIO_KIND_LABELS: Record<AudioKind, string> = {
+  ambience: 'Ambientação',
+  mood: 'Clima',
+  combat: 'Combate',
+  boss: 'Combate de Chefe',
+}
+
+export interface AudioTrack {
+  id: string
+  tableId: string
+  kind: AudioKind
+  label: string
+  /** URL pronta para tocar (o link do Drive já vem convertido). */
+  url: string
+  /** Link original, para o Mestre reconhecer o que colou. */
+  sourceUrl: string
+  source: 'youtube' | 'direct'
+  youtubeId?: string
+  createdAt: number
+}
+
+/** O que está tocando agora — decidido pelo Mestre, obedecido por todas as telas. */
+export interface SceneAudio {
+  /** Faixa de ambientação no ar (id de um AudioTrack). */
+  ambienceId?: string
+  /** Faixa de clima no ar. */
+  moodId?: string
+  /** Volumes de 0 a 1, por categoria. */
+  ambienceVolume?: number
+  moodVolume?: number
+  combatVolume?: number
+}
+
+export const DEFAULT_AUDIO_VOLUME = 0.6
 
 /** Item salvo na biblioteca da mesa: um mapa ou um preset de token (monstro/NPC/chefe). */
 export interface SceneLibraryItem {

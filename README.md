@@ -8,8 +8,11 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
 - 🌗 Modo claro/escuro, alternável a qualquer momento (botão flutuante), lembrado por navegador
 - ✋ **Rolagens passam pelo Mestre**: o jogador pede, o Mestre libera ou nega — sem rolagem
   dupla nem ação fora de hora (o Mestre pode desligar isso quando quiser)
-- 🎬 **Animação de dados** aparece para a mesa inteira a cada rolagem; o Mestre também tem
-  rolagem secreta, que só ele enxerga
+- 🎬 **Animação de dados** aparece para a mesa inteira a cada rolagem — inclusive na tela de
+  jogo —, com a cara certa de cada dado: pontinhos no d6, a silhueta da peça e o número nos
+  demais. O Mestre também tem rolagem secreta, que só ele enxerga e não aparece em tela nenhuma
+- 🎲 **Rolagem livre** para o Mestre *e* para os jogadores, solta de qualquer ação da ficha:
+  escolha o dado (d4, d6, d8, d10, d20, d100), quantos, um modificador e o porquê
 - 🗺️ **Tela de jogo** em aba separada, com zoom e navegação livres para cada um: o Mestre monta
   o mapa e arrasta ícones de personagens, NPCs, monstros e chefes (chefes ganham um ícone maior,
   com emblema e brilho); os jogadores acompanham em tempo real, sem poder mexer. Uma
@@ -37,6 +40,14 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   uma barra zera, o sistema aplica sozinho a condição (Faminto/Desidratado) e passa a tirar PV
   no ritmo que ele escolheu. Clicar no gráfico gasta um quarto do estoque e enche a barra de
   volta; o estoque pode ser reabastecido a qualquer momento
+- 🔊 **Mesa de som**: o Mestre monta a trilha da campanha por link (YouTube ou Google Drive) em
+  quatro gavetas — **Ambientação** (fundo em looping), **Clima** (o tom da cena), **Combate** e
+  **Combate de Chefe**. Na tela de jogo ele escolhe uma de ambientação e uma de clima, que tocam
+  juntas, com sliders de volume por categoria. Quando um combate começa, a música de combate
+  assume sozinha e as outras saem em fade; ao acabar, volta exatamente o que estava tocando. O
+  som sai só na tela de jogo, e cada pessoa libera o áudio uma vez (regra de reprodução
+  automática do navegador)
+- ✎ **Nome do personagem editável** depois de criado, sem perder o acesso à ficha
 - 🎚️ **Status de cada criatura ajustável**: o Bestiário dá o ponto de partida, não a sentença.
   Com "✎ ajustar status" o Mestre muda Defesa, PV, nome, tamanho no mapa e os ataques daquela
   criatura — a mesma aranha pode ser uma cria fraca num encontro e uma matriarca no outro, sem

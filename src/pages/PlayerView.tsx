@@ -4,6 +4,7 @@ import { ActionPanel } from '../components/ActionPanel'
 import { ConditionsBadges } from '../components/ConditionsBadges'
 import { ConditionsEditor } from '../components/ConditionsEditor'
 import { DiceOverlay } from '../components/DiceOverlay'
+import { FreeDiceRoller } from '../components/FreeDiceRoller'
 import { HpDonation } from '../components/HpDonation'
 import { LogFeed } from '../components/LogFeed'
 import { PortraitEditor } from '../components/PortraitEditor'
@@ -149,7 +150,12 @@ export function PlayerView({
                 onSave={(url) => updateCharacter(table.id, character.id, { portraitUrl: url || undefined })}
               />
               <div>
-                <h1 className="font-serif text-2xl text-purple-100">{character.name}</h1>
+                <CharacterName
+                  name={character.name}
+                  onRename={(name) =>
+                    updateCharacter(table.id, character.id, { name, nameLower: name.toLowerCase() })
+                  }
+                />
                 <p className="text-sm text-purple-300/60">
                   {character.ancestry && `${ANCESTRY_LABELS[character.ancestry]} · `}
                   {character.occupation} · {character.origin}
@@ -323,6 +329,20 @@ export function PlayerView({
           <ActionPanel table={table} character={character} uid={uid} />
         </Card>
 
+        {/* Rolagem livre — para o que não passa por uma ação da ficha */}
+        <Card className="p-4">
+          <FreeDiceRoller
+            table={table}
+            actorName={character.name}
+            actorType="player"
+            characterId={character.id}
+            title="Rolagem Livre"
+          />
+          <p className="mt-2 text-xs text-purple-300/50">
+            Não passa pela aprovação do Mestre — é para sorteios, curiosidades e tabelas da casa.
+          </p>
+        </Card>
+
         {/* Loja — aparece com destaque assim que o Mestre libera */}
         <ShopPanel open={shopAvailable} gold={character.gold} customItems={customItems} onBuy={buy} />
 
@@ -450,6 +470,63 @@ export function PlayerView({
       <div className="lg:sticky lg:top-4">
         <LogFeed tableId={table.id} />
       </div>
+    </div>
+  )
+}
+
+/**
+ * Nome do personagem, editável no lugar.
+ *
+ * O `nameLower` anda junto porque é por ele que o jogador reencontra a ficha ao
+ * entrar de outro aparelho — deixar os dois fora de sincronia perderia o acesso.
+ */
+function CharacterName({ name, onRename }: { name: string; onRename: (name: string) => Promise<void> | void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(name)
+
+  async function save() {
+    const clean = draft.trim()
+    if (clean && clean !== name) await onRename(clean)
+    setEditing(false)
+  }
+
+  if (!editing) {
+    return (
+      <h1 data-character-name="" className="group flex items-center gap-2 font-serif text-2xl text-purple-100">
+        {name}
+        <button
+          onClick={() => {
+            setDraft(name)
+            setEditing(true)
+          }}
+          title="Mudar o nome do personagem"
+          className="text-xs text-purple-400 opacity-0 transition hover:text-[color:var(--gold-bright)] group-hover:opacity-100"
+        >
+          ✎
+        </button>
+      </h1>
+    )
+  }
+
+  return (
+    <div className="flex items-center gap-1.5">
+      <Input
+        autoFocus
+        data-rename-input=""
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') void save()
+          if (e.key === 'Escape') setEditing(false)
+        }}
+        className="w-48"
+      />
+      <Button variant="primary" className="text-xs" disabled={!draft.trim()} onClick={save}>
+        Salvar
+      </Button>
+      <button className="text-xs text-purple-400 hover:text-purple-100" onClick={() => setEditing(false)}>
+        cancelar
+      </button>
     </div>
   )
 }

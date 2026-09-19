@@ -1,4 +1,14 @@
-// Motor de dados — Shadowlords Mini System usa apenas d6, em diversas combinações.
+// Motor de dados. As regras do Shadowlords Mini System usam só d6, mas a mesa
+// pode querer os outros dados de sempre para tabelas caseiras e sorteios — daí
+// a lista abaixo, usada pelos roladores livres do Mestre e dos jogadores.
+
+/** Dados oferecidos nos roladores livres. */
+export const DIE_TYPES = [4, 6, 8, 10, 20, 100] as const
+export type DieType = (typeof DIE_TYPES)[number]
+
+export function isDieType(sides: number): sides is DieType {
+  return (DIE_TYPES as readonly number[]).includes(sides)
+}
 
 export interface DiceResult {
   notation: string

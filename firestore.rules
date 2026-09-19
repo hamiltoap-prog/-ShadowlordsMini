@@ -149,6 +149,14 @@ service cloud.firestore {
         allow read, delete: if isSuperAdmin();
       }
 
+      // Mesa de som: todos leem (a tela de jogo de cada um toca a trilha), só o
+      // Mestre monta a biblioteca.
+      match /audioTracks/{trackId} {
+        allow read: if signedIn();
+        allow write: if isGM(tableId);
+        allow delete: if isGM(tableId) || isSuperAdmin();
+      }
+
       // Catálogo de itens forjados pelo Mestre. Todos leem — os jogadores
       // precisam ver o que está à venda na loja e o que receberam —, mas só o
       // Mestre cria e edita.

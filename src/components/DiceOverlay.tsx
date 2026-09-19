@@ -1,71 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { listenLog, listenSecretRolls } from '../lib/store'
 import type { LogEntry } from '../types'
-
-const PIP_LAYOUT: Record<number, [number, number][]> = {
-  1: [[1, 1]],
-  2: [
-    [0, 0],
-    [2, 2],
-  ],
-  3: [
-    [0, 0],
-    [1, 1],
-    [2, 2],
-  ],
-  4: [
-    [0, 0],
-    [0, 2],
-    [2, 0],
-    [2, 2],
-  ],
-  5: [
-    [0, 0],
-    [0, 2],
-    [1, 1],
-    [2, 0],
-    [2, 2],
-  ],
-  6: [
-    [0, 0],
-    [0, 2],
-    [1, 0],
-    [1, 2],
-    [2, 0],
-    [2, 2],
-  ],
-}
-
-/** Um d6 desenhado com pontinhos, girando enquanto a rolagem "acontece". */
-function Die({ value, rolling, delay }: { value: number; rolling: boolean; delay: number }) {
-  const pips = PIP_LAYOUT[Math.min(6, Math.max(1, value))] ?? PIP_LAYOUT[1]
-  return (
-    <div
-      className={`grid h-14 w-14 grid-cols-3 grid-rows-3 gap-0.5 rounded-xl border-2 p-1.5 shadow-lg transition ${
-        rolling
-          ? 'border-purple-400/60 bg-purple-800 [animation:dice-tumble_0.45s_linear_infinite]'
-          : 'border-purple-300/50 bg-gradient-to-br from-purple-100 to-purple-300'
-      }`}
-      style={{ animationDelay: `${delay}ms` }}
-    >
-      {Array.from({ length: 9 }, (_, i) => {
-        const row = Math.floor(i / 3)
-        const col = i % 3
-        const on = pips.some(([r, c]) => r === row && c === col)
-        return (
-          <span
-            key={i}
-            className={`h-full w-full rounded-full ${on ? (rolling ? 'bg-purple-200/70' : 'bg-[var(--die-face)]') : ''}`}
-          />
-        )
-      })}
-    </div>
-  )
-}
+import { DieFace } from './DieFace'
 
 interface ShownRoll {
   id: string
   dice: number[]
+  sides: number
   label: string
   summary: string
   actorName: string
@@ -96,6 +37,7 @@ export function DiceOverlay({ tableId, isGM }: { tableId: string; isGM: boolean 
         queue.current.push({
           id: e.id,
           dice: e.dice,
+          sides: e.diceSides ?? 6,
           label: e.diceLabel || e.kind,
           summary: e.summary,
           actorName: e.actorName,
@@ -153,9 +95,18 @@ export function DiceOverlay({ tableId, isGM }: { tableId: string; isGM: boolean 
           {current.secret && '🤫 '}
           {current.actorName} · {current.label}
         </p>
-        <div className="flex gap-2">
+        <div className="flex max-w-[22rem] flex-wrap justify-center gap-2">
           {current.dice.map((d, i) => (
-            <Die key={i} value={rolling ? 1 + ((tick * 3 + i * 5 + d) % 6) : d} rolling={rolling} delay={i * 90} />
+            <DieFace
+              key={i}
+              sides={current.sides}
+              // Enquanto "rola", as faces trocam depressa — sempre dentro do
+              // intervalo do próprio dado, para um d20 não piscar valores de d6.
+              value={rolling ? 1 + ((tick * 3 + i * 5 + d) % current.sides) : d}
+              rolling={rolling}
+              delay={i * 90}
+              size={current.dice.length > 5 ? 42 : 56}
+            />
           ))}
         </div>
         {!rolling && <p className="text-center text-sm text-purple-100">{current.summary}</p>}

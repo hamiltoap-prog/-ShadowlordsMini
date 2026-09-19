@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore'
 import { db } from '../firebase'
 import type {
+  AudioTrack,
   Character,
   CustomItem,
   GameTable,
@@ -330,6 +331,26 @@ export async function saveScene(tableId: string, scene: Scene) {
   await setDoc(sceneDoc(tableId), stripUndefined({ ...scene, updatedAt: Date.now() }))
 }
 
+// ---------- Mesa de som ----------
+
+const audioTracksCol = (tableId: string) => collection(requireDb(), 'tables', tableId, 'audioTracks')
+
+export async function saveAudioTrack(tableId: string, track: AudioTrack) {
+  await setDoc(doc(audioTracksCol(tableId), track.id), stripUndefined(track))
+}
+
+export async function deleteAudioTrack(tableId: string, trackId: string) {
+  await deleteDoc(doc(audioTracksCol(tableId), trackId))
+}
+
+export function listenAudioTracks(tableId: string, cb: (tracks: AudioTrack[]) => void) {
+  return onSnapshot(
+    query(audioTracksCol(tableId), orderBy('createdAt', 'asc')),
+    (snap) => cb(snap.docs.map((d) => d.data() as AudioTrack)),
+    (err) => console.error('Erro ao observar a mesa de som', err),
+  )
+}
+
 // ---------- Itens forjados pelo Mestre ----------
 
 const customItemsCol = (tableId: string) => collection(requireDb(), 'tables', tableId, 'customItems')
@@ -452,6 +473,7 @@ const TABLE_SUBCOLLECTIONS = [
   'monsterImages',
   'customItems',
   'pings',
+  'audioTracks',
 ]
 
 /**
