@@ -36,6 +36,7 @@ const ART_FILE_IDS: Record<string, string> = {
   'aranha gigante': '1Pc8VntwQiKoAPdZun-FWXaS6Eqg0O4ki',
   'cao selvagem': '1_Z4OqJGH1PXw1sLnyYdxAJjctuQGuUQS',
   'dorode': '1acnoO5__D0sFA2qlfqdMxcgl7bpUD4gU',
+  'lagarto gigante': '16pDVpmtI5kmXFwNyF01Ic2tBMmw-aTOz',
   'lobo': '1SxBOJFc8k0phkp2XzWjVX7gG0ntqiQ93',
   'morcego gigante': '1SGnzvmtaKezuXGBClxQednsBYPvCZiq0',
   'opaque': '1fKc0Np9Uh3d9zIyXx-NOKBgeIZtkc92L',

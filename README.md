@@ -50,7 +50,7 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   automática do navegador — um clique só, no botão "Ligar o som"). Cada faixa tem um **▶ testar**
   na Mesa de Som, e uma falha aparece escrita na tela em vez de virar silêncio
 - ✎ **Nome do personagem editável** depois de criado, sem perder o acesso à ficha
-- 🖼️ **Arte oficial das criaturas**: as 41 ilustrações do Bestiário vêm junto. Adicionou do
+- 🖼️ **Arte oficial das criaturas**: as 42 ilustrações do Bestiário vêm junto. Adicionou do
   Bestiário, a criatura já chega com a sua — na ficha, na peça do mapa e na lista de referência,
   igual para toda mesa e sem opção de trocar. Criatura de fora do Bestiário continua com a foto
   que o Mestre quiser
