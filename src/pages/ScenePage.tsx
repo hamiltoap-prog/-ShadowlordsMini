@@ -8,6 +8,7 @@ import { SurvivalControls } from '../components/SurvivalControls'
 import { SurvivalHud } from '../components/SurvivalHud'
 import type { TrackKey } from '../components/SurvivalHud'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
+import { resolveCreaturePortrait } from '../data/creatureArt'
 import { useAuth } from '../hooks/useAuth'
 import { firebaseConfigured } from '../firebase'
 import { logNote } from '../lib/actions'
@@ -1427,12 +1428,13 @@ function RulerOverlay({
 }
 
 function SceneTokenThumb({ token }: { token: SceneToken }) {
+  const image = resolveCreaturePortrait(token.label, token.imageUrl)
   return (
     <div
       className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-full ring-2 ${KIND_STYLE[token.kind]}`}
     >
-      {token.imageUrl ? (
-        <img src={token.imageUrl} alt={token.label} className="h-full w-full object-cover" />
+      {image ? (
+        <img src={image} alt={token.label} className="h-full w-full object-cover" />
       ) : (
         <span className="text-[9px] font-semibold text-white">{token.label.slice(0, 4)}</span>
       )}
@@ -1467,6 +1469,9 @@ function SceneTokenView({
   // A peça guarda o nome de quando foi colocada; se a ficha foi renomeada
   // depois, quem manda é o nome de agora.
   const label = status?.name ?? t.label
+  // Mesma ideia para a imagem: uma peça colocada antes de a arte oficial
+  // existir passa a mostrá-la sem precisar ser recolocada.
+  const image = resolveCreaturePortrait(label, t.imageUrl)
   const isBoss = t.kind === 'boss'
   const statusRing =
     status?.tier === 'critical'
@@ -1521,8 +1526,8 @@ function SceneTokenView({
           <path d="M12 2.5l2.35 5.68 6.15.5-4.68 4.02 1.45 5.97L12 15.4l-5.27 3.27 1.45-5.97-4.68-4.02 6.15-.5L12 2.5z" />
         </svg>
       )}
-      {t.imageUrl ? (
-        <img src={t.imageUrl} alt={t.label} className="h-full w-full rounded-full object-cover" draggable={false} />
+      {image ? (
+        <img src={image} alt={label} className="h-full w-full rounded-full object-cover" draggable={false} />
       ) : (
         <span className="flex h-full w-full items-center justify-center text-center text-[10px] font-semibold text-white/70 transition-colors group-hover:text-white">
           {label.slice(0, 3)}
@@ -1708,7 +1713,13 @@ function SceneControls({
               <button
                 onClick={() =>
                   onAddToken(
-                    { label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id },
+                    {
+                      label: n.name,
+                      imageUrl: resolveCreaturePortrait(n.name, n.portraitUrl),
+                      kind: 'monster',
+                      refType: 'npc',
+                      refId: n.id,
+                    },
                     { squares: squaresForTokenSize(n.tokenSize) },
                   )
                 }
@@ -1720,7 +1731,13 @@ function SceneControls({
                 title="Preparar na bandeja em vez de colocar direto no mapa"
                 onClick={() =>
                   onAddToken(
-                    { label: n.name, imageUrl: n.portraitUrl, kind: 'monster', refType: 'npc', refId: n.id },
+                    {
+                      label: n.name,
+                      imageUrl: resolveCreaturePortrait(n.name, n.portraitUrl),
+                      kind: 'monster',
+                      refType: 'npc',
+                      refId: n.id,
+                    },
                     { onBoard: false, squares: squaresForTokenSize(n.tokenSize) },
                   )
                 }

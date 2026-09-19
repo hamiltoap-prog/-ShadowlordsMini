@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { BESTIARY, BESTIARY_CATEGORIES } from '../data/bestiary'
+import { creatureArtUrl, hasOfficialArt, resolveCreaturePortrait } from '../data/creatureArt'
 import { roll, roll3d6 } from '../lib/dice'
 import { newId } from '../lib/id'
 import { addLogEntry, createNPC, deleteNPC, listenMonsterImages, setMonsterImage, updateCharacter, updateNPC } from '../lib/store'
 import { CREATURE_SIZES } from '../types'
 import type { Character, GameTable, NPC, NPCAttack } from '../types'
+import { Portrait } from './Portrait'
 import { PortraitEditor } from './PortraitEditor'
 import { SpecialCreatureForm } from './SpecialCreatureForm'
 import { Badge, Button, Card, Input, Select, SectionTitle } from './ui'
@@ -19,7 +21,9 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
   useEffect(() => listenMonsterImages(table.id, setMonsterImages), [table.id])
 
   const categoryOptions = BESTIARY.filter((b) => b.category === category)
-  const defaultImageUrl = monsterImages[bestiaryChoice.trim().toLowerCase()]
+  /** Criatura do Bestiário usa a arte oficial; só as de fora ficam com a foto do Mestre. */
+  const officialArt = creatureArtUrl(bestiaryChoice)
+  const defaultImageUrl = officialArt ?? monsterImages[bestiaryChoice.trim().toLowerCase()]
 
   async function addFromBestiary() {
     const entry = BESTIARY.find((b) => b.name === bestiaryChoice)
@@ -31,7 +35,7 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
       hp: { current: entry.hp, max: entry.hp },
       attacks: entry.attacks.map((a) => ({ id: newId(), name: a.name, dano: a.dano, note: a.note })),
       sourceLabel: `${entry.category}${entry.special ? ' — ' + entry.special : ''}`,
-      portraitUrl: monsterImages[entry.name.trim().toLowerCase()],
+      portraitUrl: resolveCreaturePortrait(entry.name, monsterImages[entry.name.trim().toLowerCase()]),
       visible: false,
       createdAt: Date.now(),
     })
@@ -86,18 +90,24 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
               </option>
             ))}
           </Select>
-          <PortraitEditor
-            url={defaultImageUrl}
-            name={bestiaryChoice || '?'}
-            size={32}
-            onSave={(url) => setMonsterImage(table.id, bestiaryChoice, url)}
-          />
+          {officialArt ? (
+            <Portrait url={officialArt} name={bestiaryChoice || '?'} size={32} />
+          ) : (
+            <PortraitEditor
+              url={defaultImageUrl}
+              name={bestiaryChoice || '?'}
+              size={32}
+              onSave={(url) => setMonsterImage(table.id, bestiaryChoice, url)}
+            />
+          )}
           <Button variant="primary" onClick={addFromBestiary}>
             Adicionar do Bestiário
           </Button>
         </div>
         <p className="text-[11px] text-purple-400/50">
-          A foto ao lado é a imagem padrão deste monstro — troque uma vez e toda futura adição já vem com ela.
+          {officialArt
+            ? 'A ilustração ao lado é a arte oficial desta criatura — ela vem sozinha, igual para toda mesa.'
+            : 'A foto ao lado é a imagem padrão deste monstro — troque uma vez e toda futura adição já vem com ela.'}
         </p>
         <div className="flex flex-wrap items-center gap-2 border-t border-purple-900/30 pt-2">
           <Input
@@ -384,7 +394,11 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
     <Card className={`flex flex-col gap-2 p-3 ${isSpecial ? 'sm:col-span-2 border-[color:var(--gold)]/60' : ''}`}>
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
-          <PortraitEditor url={npc.portraitUrl} name={npc.name} size={isSpecial ? 52 : 40} onSave={savePortrait} />
+          {hasOfficialArt(npc.name) ? (
+            <Portrait url={creatureArtUrl(npc.name)} name={npc.name} size={isSpecial ? 52 : 40} />
+          ) : (
+            <PortraitEditor url={npc.portraitUrl} name={npc.name} size={isSpecial ? 52 : 40} onSave={savePortrait} />
+          )}
           <div>
             <p className="flex items-center gap-1.5 font-semibold text-purple-100">
               {isSpecial && <span className="text-[color:var(--gold)]">✦</span>}

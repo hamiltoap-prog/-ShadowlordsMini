@@ -1,5 +1,6 @@
 import { type ReactNode, useState } from 'react'
 import { BESTIARY } from '../data/bestiary'
+import { creatureArtUrl } from '../data/creatureArt'
 import { ARMORS, ARMOR_NOTE, GEAR, WEAPONS } from '../data/equipment'
 import { OCCUPATIONS } from '../data/occupations'
 import { ORIGINS } from '../data/origins'
@@ -30,6 +31,7 @@ import { addLogEntry } from '../lib/store'
 import type { GameTable } from '../types'
 import { Badge, Button, Card, SectionTitle } from './ui'
 import { InfoButton } from './InfoButton'
+import { Portrait } from './Portrait'
 
 function rollTableResult(t: RollTable): { text: string; rolled: string; dice: number[] } {
   if (t.dice === '1d66') {
@@ -211,14 +213,21 @@ export function ReferenceBrowser({ table, actorName }: { table: GameTable; actor
       <Collapsible title="Bestiário">
         <div className="grid gap-1.5 sm:grid-cols-2">
           {BESTIARY.map((b) => (
-            <div key={b.name} className="rounded border border-purple-900/30 bg-black/20 p-2 text-sm">
-              <p className="text-purple-100">
-                {b.name} <span className="text-xs text-purple-400/60">({b.category})</span>
-              </p>
-              <p className="text-xs text-purple-300/70">
-                Defesa {b.defense} · PV {b.hp} · {b.attacks.map((a) => `${a.name} (${a.dano})`).join(', ')}
-              </p>
-              {b.special && <p className="text-xs text-purple-400/60">{b.special}</p>}
+            <div
+              key={b.name}
+              data-bestiary-entry={b.name}
+              className="flex items-start gap-2.5 rounded border border-purple-900/30 bg-black/20 p-2 text-sm"
+            >
+              <Portrait url={creatureArtUrl(b.name)} name={b.name} size={44} />
+              <div className="min-w-0">
+                <p className="text-purple-100">
+                  {b.name} <span className="text-xs text-purple-400/60">({b.category})</span>
+                </p>
+                <p className="text-xs text-purple-300/70">
+                  Defesa {b.defense} · PV {b.hp} · {b.attacks.map((a) => `${a.name} (${a.dano})`).join(', ')}
+                </p>
+                {b.special && <p className="text-xs text-purple-400/60">{b.special}</p>}
+              </div>
             </div>
           ))}
         </div>
