@@ -1,5 +1,6 @@
 import { FOG_COLS } from '../types'
-import type { SceneFog } from '../types'
+import type { MapFrame, SceneFog, SceneMap } from '../types'
+import { remapPoint } from './sceneGeometry'
 
 /**
  * Névoa de guerra.
@@ -111,4 +112,54 @@ export function drawFog(canvas: HTMLCanvasElement, fog: SceneFog, opts: { alpha:
 
   ctx.filter = 'none'
   ctx.globalCompositeOperation = 'source-over'
+}
+
+/**
+ * Leva a névoa junto quando o Mestre mexe no mapa (gira, desloca, dá zoom).
+ *
+ * Cada célula da malha nova pergunta: "o terreno que agora está aqui, onde
+ * estava antes?" — e copia o que a névoa dizia naquele ponto. O que vem de
+ * fora do mapa antigo entra coberto, que é a resposta honesta: o grupo nunca
+ * esteve lá.
+ */
+export function remapFog(fog: SceneFog, from: SceneMap | undefined, to: SceneMap | undefined, aspect: number): SceneFog {
+  const out: string[] = []
+  for (let row = 0; row < fog.rows; row++) {
+    for (let col = 0; col < fog.cols; col++) {
+      const before = remapPoint({ x: (col + 0.5) / fog.cols, y: (row + 0.5) / fog.rows }, to, from, aspect)
+      if (before.x < 0 || before.x > 1 || before.y < 0 || before.y > 1) {
+        out.push('0')
+        continue
+      }
+      out.push(isRevealed(fog, before.x, before.y) ? '1' : '0')
+    }
+  }
+  return { ...fog, cells: out.join('') }
+}
+
+/** Só o que move o terreno — o que a âncora da névoa precisa lembrar. */
+export function frameOf(map: SceneMap | undefined): MapFrame {
+  return { rotation: map?.rotation ?? 0, zoom: map?.zoom ?? 1, offsetX: map?.offsetX ?? 0, offsetY: map?.offsetY ?? 0 }
+}
+
+function sameFrame(a: MapFrame, b: MapFrame): boolean {
+  const f = frameOf(a)
+  const g = frameOf(b)
+  return f.rotation === g.rotation && f.zoom === g.zoom && f.offsetX === g.offsetX && f.offsetY === g.offsetY
+}
+
+/**
+ * A névoa como ela aparece AGORA: a malha guardada levada do enquadramento em
+ * que foi pintada até o de agora, na quantidade de linhas da proporção atual
+ * do palco. É ela que é desenhada, que esconde as peças e que o pincel pinta.
+ */
+export function viewFog(fog: SceneFog | undefined, map: MapFrame, aspect: number): SceneFog | undefined {
+  if (!fog) return undefined
+  const moved = fog.anchor && !sameFrame(fog.anchor, map) ? remapFog(fog, fog.anchor, map, aspect) : fog
+  return resampleFog(moved, moved.cols, fogRows(aspect))
+}
+
+/** Grava uma névoa já no enquadramento de agora (depois de pintar, revelar tudo...). */
+export function anchorFog(fog: SceneFog, map: MapFrame): SceneFog {
+  return { ...fog, anchor: frameOf(map) }
 }

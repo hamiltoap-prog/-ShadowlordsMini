@@ -7,12 +7,16 @@ import { Badge, Button, Select } from './ui'
 /**
  * Controle rápido do som na tela de jogo.
  *
- * Todo mundo vê o botão de liberar o áudio (sem um gesto, o navegador não
- * deixa tocar) e o que está no ar; só o Mestre escolhe as faixas e mexe nos
- * volumes. Ambientação e clima são uma de cada — escolher outra troca a que
- * estava, que é exatamente o comportamento pedido.
+ * Duas formas:
+ * - `bar`: o que vai na barra fina de cima, para todo mundo — o botão de
+ *   liberar o áudio (sem um gesto, o navegador não deixa tocar), o aviso de
+ *   combate e qualquer falha, escrita, em vez de virar silêncio;
+ * - `panel`: a aba Som do Mestre, onde ele escolhe as faixas e os volumes.
+ *
+ * Ambientação e clima são uma de cada — escolher outra troca a que estava.
  */
 export function SceneAudioBar({
+  mode = 'panel',
   isGM,
   tracks,
   scene,
@@ -24,6 +28,7 @@ export function SceneAudioBar({
   onDisable,
   onPatchAudio,
 }: {
+  mode?: 'bar' | 'panel'
   isGM: boolean
   tracks: AudioTrack[]
   scene: Scene
@@ -48,6 +53,35 @@ export function SceneAudioBar({
   const problems = Object.entries(statuses)
     .filter(([, s]) => s.state === 'error' && s.message)
     .map(([, s]) => s.message as string)
+
+  if (mode === 'bar') {
+    // Sem nenhuma faixa na mesa, o botão de som na barra seria só ruído.
+    if (!hasAnything) return null
+    return (
+      <span className="flex min-w-0 items-center gap-1.5">
+        {enabled ? (
+          <Button className="px-2 py-1 text-xs" onClick={onDisable} title="Silenciar só na sua tela">
+            🔇
+          </Button>
+        ) : (
+          <Button
+            variant="primary"
+            className="px-2 py-1 text-xs"
+            onClick={onEnable}
+            title="O navegador exige um clique para liberar o áudio"
+          >
+            🔊 Ligar o som
+          </Button>
+        )}
+        {plan.combatTakeover && <Badge tone="bad">⚔️ combate</Badge>}
+        {enabled && problems.length > 0 && (
+          <span data-audio-problem="" title={problems.join('\n')} className="max-w-[16rem] truncate text-xs text-red-300">
+            ⚠ {problems[0]}
+          </span>
+        )}
+      </span>
+    )
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">

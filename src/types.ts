@@ -495,6 +495,23 @@ export interface SceneFog {
   rows: number
   /** cols*rows caracteres, '0' (escondido) ou '1' (revelado), linha a linha. */
   cells: string
+  /**
+   * O enquadramento do mapa no momento em que a malha foi pintada. Quando o
+   * Mestre gira, dá zoom ou desloca o mapa, a malha guardada não é refeita: a
+   * névoa desenhada é sempre recalculada a partir deste ponto de partida. Assim
+   * o arredondamento para a célula mais próxima acontece uma vez só, em vez de
+   * se acumular a cada pequeno ajuste e fazer a névoa escorregar do terreno.
+   * Névoas antigas não têm: valem como pintadas no enquadramento de agora.
+   */
+  anchor?: MapFrame
+}
+
+/** A parte do enquadramento que move o terreno dentro do palco. */
+export interface MapFrame {
+  rotation?: number
+  zoom?: number
+  offsetX?: number
+  offsetY?: number
 }
 
 /** Marcação rápida no mapa ("olhem aqui"), que some sozinha depois de alguns segundos. */
@@ -538,6 +555,23 @@ export interface Scene {
   /** Névoa de guerra: o que o grupo já explorou. */
   fog?: SceneFog
   /** Trilha sonora no ar, tocada só na tela de jogo. */
+  audio?: SceneAudio
+  /** Item da biblioteca de onde esta cena foi aberta — é o que permite gravar
+   *  por cima dele em vez de acumular cópias. Fica no documento para
+   *  sobreviver a um recarregar de página. */
+  fromLibraryId?: string
+}
+
+/** O que uma cena guardada na biblioteca leva junto. */
+export interface SceneSnapshot {
+  backgroundUrl: string
+  map?: SceneMap
+  gridColumns?: number
+  showGrid?: boolean
+  timeOfDay?: TimeOfDay
+  locationLit?: boolean
+  fog?: SceneFog
+  tokens: SceneToken[]
   audio?: SceneAudio
 }
 
@@ -600,7 +634,12 @@ export interface SceneLibraryItem {
   tokenKind?: SceneTokenKind // presente quando kind === 'token'
   /** Pasta/categoria para organizar mapas na biblioteca (ex: "Masmorras", "Cidades"). */
   folder?: string
+  /** A cena inteira (enquadramento, grade, luz, névoa, peças e som). Itens
+   *  antigos, de quando a biblioteca guardava só a imagem, não têm: abrir um
+   *  deles troca só o mapa. */
+  snapshot?: SceneSnapshot
   createdAt: number
+  updatedAt?: number
 }
 
 /** Lembra a última imagem usada para um nome de criatura (bestiário ou

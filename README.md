@@ -13,17 +13,24 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   demais. O Mestre também tem rolagem secreta, que só ele enxerga e não aparece em tela nenhuma
 - 🎲 **Rolagem livre** para o Mestre *e* para os jogadores, solta de qualquer ação da ficha:
   escolha o dado (d4, d6, d8, d10, d20, d100), quantos, um modificador e o porquê
-- 🗺️ **Tela de jogo** em aba separada, com zoom e navegação livres para cada um: o Mestre monta
-  o mapa e arrasta ícones de personagens, NPCs, monstros e chefes (chefes ganham um ícone maior,
-  com emblema e brilho); os jogadores acompanham em tempo real, sem poder mexer. Uma
-  **tela de espera** cobre tudo enquanto o Mestre prepara a cena, uma **bandeja de criaturas
-  preparadas** deixa surpresas escondidas até serem colocadas no mapa (com o tipo de cada uma
-  editável ali mesmo), e a **biblioteca da mesa** guarda mapas (organizados em pastas) e
-  criaturas favoritas para reusar depois
+- 🗺️ **Tela de jogo** em aba separada, **ocupando a janela inteira**. O **jogador** vê só uma
+  barra fina (dia/noite, luz, som e as ferramentas Mover, Marcar e Régua) e o mapa em todo o
+  resto da tela, sem precisar rolar a página. O **Mestre** tem uma segunda linha de ações rápidas
+  (revelar cena, dia/noite, luz, grade, névoa, fome e sede) e quatro painéis — **Mapa**,
+  **Peças**, **Biblioteca** e **Som** — que abrem acima do mapa e fecham quando ele termina.
+  Chefes ganham um ícone maior, com emblema e brilho. Uma **tela de espera** cobre tudo enquanto
+  o Mestre prepara a cena, e uma **bandeja de criaturas preparadas** deixa surpresas escondidas
+  até serem colocadas no mapa. Peça nova nasce numa casa livre, em vez de empilhar no centro
+- 📚 **Biblioteca de cenas inteiras**: guardar uma cena guarda tudo — mapa, enquadramento,
+  grade, luz, névoa, peças e o som que estava tocando. Monte o encontro antes da sessão e abra
+  na hora; a cena aberta pode ser **gravada por cima** ("Atualizar") ou guardada como nova, e
+  tudo fica organizado em pastas. Mapas guardados antes disso continuam lá, trocando só a imagem
 - 🖼️ **Enquadramento do mapa e escala**: o Mestre gira, aproxima, recorta e reposiciona a
   imagem do mapa, e define a escala em *quadrados de largura* — num mapa grande as peças
   encolhem juntas, mantendo a proporção entre elas (uma criatura Enorme sempre ocupa 3
-  quadrados). Dá para mostrar a grade e encaixar as peças nela. Tudo isso fica gravado na cena,
+  quadrados). Dá para mostrar a grade e encaixar as peças nela — a grade desenhada tem células
+  quadradas de verdade, exatamente onde as peças encaixam. **Girar, aproximar ou deslocar o mapa
+  leva as peças e a névoa junto com o terreno**. Tudo isso fica gravado na cena,
   então **a tela do jogador mostra exatamente o mesmo enquadramento e as mesmas posições**, em
   qualquer tamanho ou formato de tela; o zoom e o arraste de cada um continuam sendo só a lente
   pessoal de quem está olhando
@@ -31,7 +38,8 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   resto some suavemente (nada de recorte de tesoura). Criaturas em área não revelada nem
   aparecem para os jogadores — cada um continua vendo a própria peça
 - 📏 **Régua** (arraste de um ponto ao outro e leia a distância em quadrados) e **marcação**
-  (Alt + clique põe um sinal pulsante no mapa que a mesa toda vê por alguns segundos)
+  (ferramenta 📍 Marcar, ou Alt + clique: um sinal pulsante no mapa que a mesa toda vê por
+  alguns segundos — funciona também no toque, no celular)
 - ✋ **Jogadores movem a própria peça** quando o Mestre libera na tela de jogo — cada um só
   arrasta a peça ligada à própria ficha; NPCs, monstros e chefes continuam só com o Mestre
 - 🍖💧 **Fome e sede do grupo** num HUD fixo na tela de jogo: dois gráficos de pizza com o
@@ -250,14 +258,15 @@ banco de dados em qualquer uma delas, já que tudo roda no navegador do jogador.
 5. O Mestre controla tudo pelo painel: fila de pedidos, NPCs e monstros do Bestiário, combate,
    tabelas aleatórias, loja (liberada só quando o grupo estiver num lugar de comércio) e
    rolagens secretas que ninguém mais vê.
-6. A **tela de jogo** (`🗺️ Tela de jogo`, abre em outra aba) mostra o mapa e os ícones. O
-   Mestre arrasta imagens para dentro — inclusive arrastando direto de outra aba do navegador,
-   com Shift para virar o mapa de fundo — e move as peças; os jogadores só acompanham.
-   A barra de **ferramentas** escolhe o que o arraste faz: mover peças e navegar, medir com a
-   régua, ajustar o mapa (posição e zoom da imagem de fundo) ou pintar a névoa de guerra. Em
-   "mais ajustes" ficam giro, recorte e proporção. A **escala** diz quantos quadrados o mapa tem
-   de largura e é o que define o tamanho das peças. **Alt + clique** marca um ponto para todos.
-   O botão **🍖 Fome e sede** abre o controle das provisões e de quem está no grupo.
+6. A **tela de jogo** (`🗺️ Tela de jogo`, abre em outra aba) mostra o mapa e os ícones, ocupando
+   a janela toda. As **ferramentas** na barra de cima escolhem o que o clique faz: mover peças e
+   navegar, marcar um ponto para todos, medir com a régua e — só o Mestre — ajustar o mapa
+   (arrastar e dar zoom na imagem de fundo) ou pintar a névoa de guerra. Os painéis do Mestre:
+   **Mapa** (imagem, escala, grade, giro, tamanho, posição e recorte do palco), **Peças** (pôr
+   personagens e criaturas no mapa, bandeja, tamanho de cada peça e acender a luz de um
+   personagem), **Biblioteca** (cenas guardadas e ícones prontos) e **Som** (o que toca agora).
+   O Mestre também pode arrastar imagens de outra aba direto para o mapa — com Shift, ela vira
+   o mapa de fundo. O botão **🍖 Fome e sede** abre o controle das provisões e do grupo.
 
 Cada navegador também "lembra" a última mesa acessada, então dá para voltar direto pelo
 histórico na sessão seguinte.

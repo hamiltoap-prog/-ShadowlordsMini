@@ -27,6 +27,7 @@ import type {
   Scene,
   SceneLibraryItem,
   ScenePing,
+  SceneToken,
 } from '../types'
 import { newId, newTableCode } from './id'
 
@@ -329,6 +330,16 @@ export function sceneDoc(tableId: string) {
 
 export async function saveScene(tableId: string, scene: Scene) {
   await setDoc(sceneDoc(tableId), stripUndefined({ ...scene, updatedAt: Date.now() }))
+}
+
+/**
+ * Grava só as peças. É o que o jogador pode mudar (a regra do banco recusa
+ * qualquer outro campo), e é o que o arraste do Mestre usa também: regravar a
+ * cena inteira a cada peça solta desfazia o que tivesse mudado por outro lado
+ * no meio tempo — a peça que um jogador acabou de mover, por exemplo.
+ */
+export async function saveSceneTokens(tableId: string, tokens: SceneToken[]) {
+  await updateDoc(sceneDoc(tableId), { tokens: tokens.map((t) => stripUndefined(t)), updatedAt: Date.now() })
 }
 
 // ---------- Mesa de som ----------
