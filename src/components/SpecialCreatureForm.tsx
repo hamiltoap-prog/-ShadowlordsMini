@@ -4,7 +4,7 @@ import { normalizeImageUrl } from '../lib/imageUrl'
 import { CREATURE_SIZES } from '../types'
 import type { NPC, NPCAttack, NPCStat, NPCTrait } from '../types'
 import { PortraitEditor } from './PortraitEditor'
-import { Button, Card, Input, SectionTitle, Select } from './ui'
+import { Button, Card, Input, SectionTitle, Select, NumberInput } from './ui'
 
 /** O que a ficha livre devolve — o resto (id, tableId, createdAt) é do chamador. */
 export type SpecialCreatureDraft = Pick<
@@ -134,20 +134,18 @@ export function SpecialCreatureForm({
       <div className="flex flex-wrap items-end gap-3 border-t border-[color:var(--gold-dark)] pt-3">
         <label className="flex flex-col gap-1 text-xs uppercase tracking-wider text-purple-300">
           Defesa
-          <Input
-            type="number"
+          <NumberInput min={0}
             value={draft.defense}
-            onChange={(e) => patch({ defense: Number(e.target.value) })}
+            onChange={(n) => patch({ defense: n })}
             className="w-24"
           />
         </label>
         <label className="flex flex-col gap-1 text-xs uppercase tracking-wider text-purple-300">
           PV máximo
-          <Input
-            type="number"
+          <NumberInput min={1}
             value={draft.hp.max}
-            onChange={(e) => {
-              const max = Number(e.target.value)
+            onChange={(n) => {
+              const max = n
               patch({ hp: { current: Math.min(draft.hp.current, max), max } })
             }}
             className="w-24"

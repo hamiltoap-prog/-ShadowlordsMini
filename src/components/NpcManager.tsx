@@ -9,7 +9,7 @@ import type { Character, GameTable, NPC, NPCAttack } from '../types'
 import { Portrait } from './Portrait'
 import { PortraitEditor } from './PortraitEditor'
 import { SpecialCreatureForm } from './SpecialCreatureForm'
-import { Badge, Button, Card, Input, Select, SectionTitle } from './ui'
+import { Badge, Button, Card, Input, Select, SectionTitle, NumberInput } from './ui'
 
 export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs: NPC[]; characters: Character[] }) {
   const [category, setCategory] = useState(BESTIARY_CATEGORIES[0])
@@ -209,29 +209,26 @@ function CreatureStats({ table, npc, onClose }: { table: GameTable; npc: NPC; on
         </label>
         <label className="flex items-center gap-1.5">
           Defesa
-          <Input
-            type="number"
+          <NumberInput
             min={0}
             value={defense}
-            onChange={(e) => setDefense(Number(e.target.value))}
+            onChange={(n) => setDefense(n)}
             style={{ width: '4.5rem' }}
           />
         </label>
         <label className="flex items-center gap-1.5">
           PV
-          <Input
-            type="number"
+          <NumberInput
             min={0}
             value={hpCurrent}
-            onChange={(e) => setHpCurrent(Number(e.target.value))}
+            onChange={(n) => setHpCurrent(n)}
             style={{ width: '4.5rem' }}
           />
           /
-          <Input
-            type="number"
+          <NumberInput
             min={1}
             value={hpMax}
-            onChange={(e) => setHpMax(Number(e.target.value))}
+            onChange={(n) => setHpMax(n)}
             style={{ width: '4.5rem' }}
           />
         </label>
@@ -478,7 +475,7 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
         />
       </div>
       <div className="flex items-center gap-1">
-        <Input type="number" value={hpDelta} onChange={(e) => setHpDelta(Number(e.target.value))} className="w-14" />
+        <NumberInput min={0} value={hpDelta} onChange={(n) => setHpDelta(n)} className="w-14" />
         <Button variant="danger" onClick={() => applyHp(-hpDelta)}>
           − PV
         </Button>
@@ -504,7 +501,7 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
             ))}
           </Select>
           <span className="text-xs text-purple-300/60">bônus</span>
-          <Input type="number" value={bonus} onChange={(e) => setBonus(Number(e.target.value))} className="w-14" />
+          <NumberInput value={bonus} onChange={(n) => setBonus(n)} className="w-14" />
           <Button onClick={rollAttack}>🎲 Atacar (dano automático se acertar)</Button>
           <Button variant="danger" title="Rola dano extra, sem precisar de um novo ataque" onClick={rollDamageOnTarget}>
             💥 Dano Extra

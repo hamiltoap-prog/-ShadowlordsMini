@@ -4,7 +4,7 @@ import type { DieType } from '../lib/dice'
 import { addLogEntry, addSecretRoll } from '../lib/store'
 import type { GameTable, LogEntry } from '../types'
 import { DieFace } from './DieFace'
-import { Badge, Button, Input, SectionTitle } from './ui'
+import { Badge, Button, Input, SectionTitle, NumberInput } from './ui'
 
 /**
  * Rolagem livre — a que não está presa a nenhuma ação da ficha. Serve tanto ao
@@ -97,21 +97,19 @@ export function FreeDiceRoller({
       <div className="flex flex-wrap items-center gap-2 text-sm text-purple-200">
         <label className="flex items-center gap-1.5">
           Quantos
-          <Input
-            type="number"
+          <NumberInput
             min={1}
             max={20}
             value={count}
-            onChange={(e) => setCount(Math.max(1, Math.min(20, Number(e.target.value))))}
+            onChange={(n) => setCount(Math.max(1, Math.min(20, n)))}
             style={{ width: '4.5rem' }}
           />
         </label>
         <label className="flex items-center gap-1.5">
           Mod.
-          <Input
-            type="number"
+          <NumberInput
             value={modifier}
-            onChange={(e) => setModifier(Number(e.target.value))}
+            onChange={(n) => setModifier(n)}
             style={{ width: '4.5rem' }}
           />
         </label>

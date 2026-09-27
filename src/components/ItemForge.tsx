@@ -26,7 +26,7 @@ import type {
   ItemEffect,
   ItemRarity,
 } from '../types'
-import { Badge, Button, Card, Input, SectionTitle, Select, TabButton } from './ui'
+import { Badge, Button, Card, Input, SectionTitle, Select, TabButton, NumberInput } from './ui'
 
 /**
  * Forja de itens do Mestre: armas, armaduras e equipamentos próprios da
@@ -273,11 +273,10 @@ function ItemForm({
         </Select>
         <label className="flex items-center gap-1.5 text-sm text-purple-200">
           💰
-          <Input
-            type="number"
+          <NumberInput
             min={0}
             value={draft.custo}
-            onChange={(e) => patch({ custo: Math.max(0, Number(e.target.value)) })}
+            onChange={(n) => patch({ custo: Math.max(0, n) })}
             style={{ width: '5.5rem' }}
           />
         </label>
@@ -357,12 +356,11 @@ function ItemForm({
         <div className="flex flex-col gap-2 border-t border-purple-900/30 pt-2">
           <label className="flex items-center gap-1.5 text-sm text-purple-200">
             Bônus de Defesa
-            <Input
-              type="number"
+            <NumberInput
               min={0}
               max={10}
               value={draft.defesaBonus ?? 0}
-              onChange={(e) => patch({ defesaBonus: Math.max(0, Number(e.target.value)) })}
+              onChange={(n) => patch({ defesaBonus: Math.max(0, n) })}
               style={{ width: '5rem' }}
             />
           </label>
@@ -387,19 +385,17 @@ function ItemForm({
               <>
                 <label className="flex items-center gap-1.5">
                   Bônus de ataque
-                  <Input
-                    type="number"
+                  <NumberInput
                     value={draft.attackBonus ?? 0}
-                    onChange={(e) => patch({ attackBonus: Number(e.target.value) })}
+                    onChange={(n) => patch({ attackBonus: n })}
                     style={{ width: '5rem' }}
                   />
                 </label>
                 <label className="flex items-center gap-1.5">
                   Bônus de dano
-                  <Input
-                    type="number"
+                  <NumberInput
                     value={draft.damageBonus ?? 0}
-                    onChange={(e) => patch({ damageBonus: Number(e.target.value) })}
+                    onChange={(n) => patch({ damageBonus: n })}
                     style={{ width: '5rem' }}
                   />
                 </label>
@@ -407,11 +403,10 @@ function ItemForm({
             )}
             <label className="flex items-center gap-1.5">
               Cargas
-              <Input
-                type="number"
+              <NumberInput
                 min={0}
                 value={draft.charges ?? 0}
-                onChange={(e) => patch({ charges: Math.max(0, Number(e.target.value)) })}
+                onChange={(n) => patch({ charges: Math.max(0, n) })}
                 style={{ width: '5rem' }}
               />
               <span className="text-xs text-purple-400/50">(0 = sem limite)</span>
@@ -451,12 +446,11 @@ function ItemForm({
                 </option>
               ))}
             </Select>
-            <Input
-              type="number"
+            <NumberInput
               value={b.value}
-              onChange={(ev) =>
+              onChange={(n) =>
                 patch({
-                  bonuses: (draft.bonuses ?? []).map((x, i) => (i === idx ? { ...x, value: Number(ev.target.value) } : x)),
+                  bonuses: (draft.bonuses ?? []).map((x, i) => (i === idx ? { ...x, value: n } : x)),
                 })
               }
               style={{ width: '5rem' }}

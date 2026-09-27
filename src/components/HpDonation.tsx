@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { logNote } from '../lib/actions'
 import { donateHp } from '../lib/store'
 import type { Character, GameTable } from '../types'
-import { Button, Input, Select } from './ui'
+import { Button, Select, NumberInput } from './ui'
 
 /**
  * Doação de PV entre companheiros de mesa: alguém abre mão de parte da própria
@@ -84,12 +84,11 @@ export function HpDonation({
             </option>
           ))}
         </Select>
-        <Input
-          type="number"
+        <NumberInput
           min={1}
           max={Math.max(1, canGive)}
           value={amount}
-          onChange={(e) => setAmount(Math.max(1, Math.min(Math.max(1, canGive), Number(e.target.value))))}
+          onChange={(n) => setAmount(Math.max(1, Math.min(Math.max(1, canGive), n)))}
           style={{ width: '4.5rem' }}
         />
         <Button variant="primary" className="text-xs" disabled={!target || busy || canGive <= 0} onClick={donate}>

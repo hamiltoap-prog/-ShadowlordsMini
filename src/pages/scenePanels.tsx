@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Badge, Button, Input, SectionTitle } from '../components/ui'
+import { Badge, Button, Input, SectionTitle, NumberInput } from '../components/ui'
 import { resolveCreaturePortrait } from '../data/creatureArt'
 import { normalizeImageUrl } from '../lib/imageUrl'
 import {
@@ -205,12 +205,11 @@ export function MapPanel({
           onChange={(e) => onPatchScene({ gridColumns: Number(e.target.value) })}
           className="w-40"
         />
-        <Input
-          type="number"
+        <NumberInput
           min={MIN_GRID_COLUMNS}
           max={MAX_GRID_COLUMNS}
           value={columns}
-          onChange={(e) => onPatchScene({ gridColumns: Number(e.target.value) })}
+          onChange={(n) => onPatchScene({ gridColumns: n })}
           style={{ width: '4.5rem' }}
         />
         <span className="text-purple-300/60">quadrados de largura — quanto maior o mapa, menores ficam as peças</span>
@@ -540,13 +539,12 @@ export function PiecesPanel({
               <KindSelect value={t.kind} onChange={(k) => onUpdateToken(t.id, { kind: k })} />
               <label className="flex items-center gap-1" title="Tamanho em quadrados da grade">
                 quadrados
-                <input
-                  type="number"
+                <NumberInput bare
                   min={0.5}
                   max={12}
                   step={0.5}
                   value={tokenSquares(t, columns)}
-                  onChange={(e) => onUpdateToken(t.id, { squares: Math.max(0.5, Number(e.target.value)) })}
+                  onChange={(n) => onUpdateToken(t.id, { squares: Math.max(0.5, n) })}
                   className="w-14 rounded border border-purple-900/50 bg-[var(--surface-well)] px-1 py-0.5 text-xs text-purple-50"
                 />
               </label>

@@ -4,7 +4,7 @@ import { formatCheck } from '../lib/format'
 import { addLogEntry, addSecretRoll, listenSecretRolls } from '../lib/store'
 import { FreeDiceRoller } from './FreeDiceRoller'
 import type { GameTable, LogEntry } from '../types'
-import { Badge, Button, Card, Input } from './ui'
+import { Badge, Button, Card, Input, NumberInput } from './ui'
 
 /**
  * Rolagens do próprio Mestre. Pode ser aberta (todos veem e a animação aparece
@@ -56,9 +56,9 @@ export function GMDiceRoller({ table }: { table: GameTable }) {
         </button>
         <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Rótulo (ex: emboscada)" className="w-40" />
         <span className="text-sm text-purple-300/70">mod.</span>
-        <Input type="number" value={modifier} onChange={(e) => setModifier(Number(e.target.value))} className="w-16" />
+        <NumberInput value={modifier} onChange={(n) => setModifier(n)} className="w-16" />
         <span className="text-sm text-purple-300/70">Teste de Atributo — dificuldade</span>
-        <Input type="number" value={difficulty} onChange={(e) => setDifficulty(Number(e.target.value))} className="w-16" />
+        <NumberInput min={0} value={difficulty} onChange={(n) => setDifficulty(n)} className="w-16" />
         <Button disabled={busy} onClick={rollTest}>
           🎲 Testar
         </Button>

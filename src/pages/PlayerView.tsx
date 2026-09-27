@@ -10,7 +10,7 @@ import { LogFeed } from '../components/LogFeed'
 import { PortraitEditor } from '../components/PortraitEditor'
 import { ShopPanel } from '../components/ShopPanel'
 import { XpPanel } from '../components/XpPanel'
-import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
+import { Badge, Button, Card, Input, SectionTitle, NumberInput } from '../components/ui'
 import { logNote } from '../lib/actions'
 import { ancestryTraitLabel } from '../lib/ancestry'
 import { bonusSources, computeDefense, formatBonus, withGearEffects } from '../lib/gear'
@@ -204,7 +204,7 @@ export function PlayerView({
                 ) : null}
               </div>
               <div className="mt-1 flex items-center gap-1">
-                <Input type="number" value={hpDelta} onChange={(e) => setHpDelta(Number(e.target.value))} className="w-16" />
+                <NumberInput min={0} value={hpDelta} onChange={(n) => setHpDelta(n)} className="w-16" />
                 <Button variant="danger" onClick={() => applyHp(-hpDelta)}>
                   − Dano
                 </Button>
@@ -228,10 +228,9 @@ export function PlayerView({
             <div>
               <p className="text-xs uppercase text-purple-400/60">Moedas</p>
               {asGM ? (
-                <Input
-                  type="number"
+                <NumberInput min={0}
                   value={character.gold}
-                  onChange={(e) => updateCharacter(table.id, character.id, { gold: Number(e.target.value) })}
+                  onChange={(n) => updateCharacter(table.id, character.id, { gold: n })}
                   className="w-24"
                 />
               ) : (
@@ -285,22 +284,20 @@ export function PlayerView({
             <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-purple-900/30 pt-3 text-sm">
               <label className="flex items-center gap-1 text-purple-300/70">
                 PV máx.
-                <Input
-                  type="number"
+                <NumberInput min={1}
                   value={character.hp.max}
-                  onChange={(e) =>
-                    updateCharacter(table.id, character.id, { hp: { ...character.hp, max: Number(e.target.value) } })
+                  onChange={(n) =>
+                    updateCharacter(table.id, character.id, { hp: { ...character.hp, max: n } })
                   }
                   className="w-20"
                 />
               </label>
               <label className="flex items-center gap-1 text-purple-300/70">
                 Defesa base
-                <Input
-                  type="number"
+                <NumberInput min={0}
                   value={character.baseDefense}
-                  onChange={(e) => {
-                    const baseDefense = Number(e.target.value)
+                  onChange={(n) => {
+                    const baseDefense = n
                     updateCharacter(table.id, character.id, {
                       baseDefense,
                       defense: computeDefense({ ...character, baseDefense }),
@@ -311,10 +308,9 @@ export function PlayerView({
               </label>
               <label className="flex items-center gap-1 text-purple-300/70">
                 XP
-                <Input
-                  type="number"
+                <NumberInput min={0}
                   value={character.xp}
-                  onChange={(e) => updateCharacter(table.id, character.id, { xp: Number(e.target.value) })}
+                  onChange={(n) => updateCharacter(table.id, character.id, { xp: n })}
                   className="w-20"
                 />
               </label>
@@ -643,11 +639,10 @@ function LightSourceCard({ table, character }: { table: GameTable; character: Ch
       ) : (
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-purple-300/70">Duração (minutos):</span>
-          <Input
-            type="number"
+          <NumberInput
             min={1}
             value={minutes}
-            onChange={(e) => setMinutes(Math.max(1, Number(e.target.value)))}
+            onChange={(n) => setMinutes(Math.max(1, n))}
             className="w-20"
           />
           <Button variant="primary" onClick={light}>
@@ -708,16 +703,14 @@ function GMAttributeEditor({
   }
   return (
     <div className="flex flex-col items-center gap-1">
-      <Input
-        type="number"
+      <NumberInput min={0}
         value={attr.score}
-        onChange={(e) => update({ score: Number(e.target.value) })}
+        onChange={(n) => update({ score: n })}
         className="w-14 px-1 text-center"
       />
-      <Input
-        type="number"
+      <NumberInput
         value={attr.mod}
-        onChange={(e) => update({ mod: Number(e.target.value) })}
+        onChange={(n) => update({ mod: n })}
         className="w-14 px-1 text-center text-xs"
       />
     </div>

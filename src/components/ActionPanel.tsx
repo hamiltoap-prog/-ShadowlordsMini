@@ -6,7 +6,7 @@ import { MAX_HP_ON_ROLL, affordableHpBoost, hpNeededForSuccess, requestRoll, spe
 import { listenCharacters, listenMyRollRequests, listenNPCs } from '../lib/store'
 import { ATTRIBUTE_KEYS, ATTRIBUTE_LABELS } from '../types'
 import type { AttributeKey, Character, GameTable, NPC, RollRequest } from '../types'
-import { Badge, Button, Input, Select, TabButton } from './ui'
+import { Badge, Button, Select, TabButton, NumberInput } from './ui'
 
 type Tab = 'teste' | 'ataque' | 'dano' | 'feitico'
 
@@ -273,10 +273,9 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                   {target.defense} · {target.name}
                 </Badge>
               ) : (
-                <Input
-                  type="number"
+                <NumberInput min={0}
                   value={targetDefense}
-                  onChange={(e) => setTargetDefense(Number(e.target.value))}
+                  onChange={(n) => setTargetDefense(n)}
                   className="w-16"
                 />
               )}
@@ -419,12 +418,11 @@ function HpBoost({ table, character, request }: { table: GameTable; character: C
           Faltaram <b className="text-[color:var(--gold-bright)]">{missing}</b> ponto{missing > 1 ? 's' : ''}. Gastar PV
           para virar sucesso?
         </span>
-        <Input
-          type="number"
+        <NumberInput
           min={1}
           max={maxSpend}
           value={amount}
-          onChange={(e) => setAmount(Math.max(1, Math.min(maxSpend, Number(e.target.value))))}
+          onChange={(n) => setAmount(Math.max(1, Math.min(maxSpend, n)))}
           className="w-16"
         />
         <Button

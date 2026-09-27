@@ -4,7 +4,7 @@ import type { Character, SurvivalState, SurvivalTrack } from '../types'
 import { consume, minutesLeft, restock, trackRemaining } from '../lib/survival'
 import { SupplyPie } from './SurvivalHud'
 import type { TrackKey } from './SurvivalHud'
-import { Button, Input, SectionTitle } from './ui'
+import { Button, SectionTitle, NumberInput } from './ui'
 
 /**
  * Painel do Mestre para fome e sede. Fica num popup porque é coisa de
@@ -83,21 +83,19 @@ export function SurvivalControls({
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-purple-900/30 pt-3 text-sm text-purple-200">
           <span className="uppercase tracking-[0.14em] text-purple-400/60">Privação</span>
           <span>perde</span>
-          <Input
-            type="number"
+          <NumberInput
             min={0}
             max={20}
             value={state.damagePerTick}
-            onChange={(e) => patch({ damagePerTick: Math.max(0, Number(e.target.value)) })}
+            onChange={(n) => patch({ damagePerTick: Math.max(0, n) })}
             style={{ width: '4.5rem' }}
           />
           <span>PV a cada</span>
-          <Input
-            type="number"
+          <NumberInput
             min={1}
             max={600}
             value={state.damageMinutes}
-            onChange={(e) => patch({ damageMinutes: Math.max(1, Number(e.target.value)) })}
+            onChange={(n) => patch({ damageMinutes: Math.max(1, n) })}
             style={{ width: '5rem' }}
           />
           <span>minutos, para cada barra zerada.</span>
@@ -189,12 +187,11 @@ function TrackPanel({
 
       <label className="flex flex-wrap items-center gap-2 text-xs text-purple-200">
         dura
-        <Input
-          type="number"
+        <NumberInput
           min={1}
           max={2880}
           value={track.intervalMinutes}
-          onChange={(e) => onInterval(Math.max(1, Number(e.target.value)))}
+          onChange={(n) => onInterval(Math.max(1, n))}
           style={{ width: '5rem' }}
         />
         minutos

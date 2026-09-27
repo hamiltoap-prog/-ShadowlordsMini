@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { ButtonHTMLAttributes, InputHTMLAttributes, PropsWithChildren, SelectHTMLAttributes } from 'react'
 
 /** Placa da HUD: canto chanfrado, fio de ouro no topo e fundo de aço escuro. */
@@ -95,5 +96,98 @@ export function Badge({ children, tone = 'default' }: PropsWithChildren<{ tone?:
     <span className={`border px-2 py-0.5 text-[11px] font-semibold uppercase tracking-[0.1em] ${toneClasses}`}>
       {children}
     </span>
+  )
+}
+
+/**
+ * Campo de número que dá para editar no celular.
+ *
+ * Um `<input type="number">` ligado direto a um número não deixa o campo ficar
+ * vazio: apagar o "1" para digitar outro valor virava 0 (ou voltava para o
+ * mínimo) na mesma hora, e no celular não havia como trocar o número. Aqui o
+ * campo guarda o texto enquanto a pessoa digita e só passa o número adiante
+ * quando ele é válido; ao sair, se ficou vazio, volta ao último valor.
+ *
+ * Tocar no campo seleciona o número inteiro, então digitar já substitui.
+ */
+export function NumberInput({
+  value,
+  onChange,
+  bare = false,
+  className = '',
+  min,
+  max,
+  step,
+  ...rest
+}: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'> & {
+  value: number
+  onChange: (value: number) => void
+  /** Sem o estilo do `Input` — para campos que já têm o próprio visual. */
+  bare?: boolean
+}) {
+  const [draft, setDraft] = useState<string | null>(null)
+  const minN = min === undefined ? undefined : Number(min)
+  const maxN = max === undefined ? undefined : Number(max)
+  const decimals = step !== undefined && Number(step) % 1 !== 0
+
+  function parse(text: string): number | null {
+    const t = text.trim().replace(',', '.')
+    if (t === '' || t === '-' || t === '.' || t === '-.') return null
+    const n = Number(t)
+    return Number.isFinite(n) ? n : null
+  }
+
+  function clamp(n: number): number {
+    let v = n
+    if (minN !== undefined && Number.isFinite(minN)) v = Math.max(minN, v)
+    if (maxN !== undefined && Number.isFinite(maxN)) v = Math.min(maxN, v)
+    return v
+  }
+
+  const baseClass = bare
+    ? className
+    : `w-full border border-[color:var(--gold-dark)] bg-[var(--surface-well)] px-3 py-1.5 text-sm text-purple-100 outline-none transition placeholder:text-purple-400/50 focus:border-[color:var(--gold)] focus:shadow-[0_0_0_1px_rgba(200,170,110,0.25)] ${className}`
+
+  return (
+    <input
+      {...rest}
+      type="text"
+      // Teclado de números no celular; com negativo ou decimal, o que tem sinal e vírgula.
+      inputMode={decimals ? 'decimal' : minN !== undefined && minN >= 0 ? 'numeric' : 'text'}
+      pattern={minN !== undefined && minN >= 0 && !decimals ? '[0-9]*' : undefined}
+      value={draft ?? String(value)}
+      className={baseClass}
+      onFocus={(e) => {
+        setDraft(String(value))
+        // No iPhone, selecionar no próprio foco é desfeito pelo toque que
+        // acabou de acontecer; um instante depois, a seleção fica.
+        const el = e.currentTarget
+        setTimeout(() => el.setSelectionRange(0, el.value.length), 0)
+        rest.onFocus?.(e)
+      }}
+      onChange={(e) => {
+        const text = e.target.value
+        setDraft(text)
+        const n = parse(text)
+        // Fora dos limites só é corrigido ao sair do campo: "1" a caminho de
+        // "15" num campo de mínimo 10 não pode virar 10 no meio da digitação.
+        if (n === null) return
+        if ((minN !== undefined && n < minN) || (maxN !== undefined && n > maxN)) return
+        if (n !== value) onChange(n)
+      }}
+      onBlur={(e) => {
+        const n = draft === null ? null : parse(draft)
+        if (n !== null) {
+          const v = clamp(n)
+          if (v !== value) onChange(v)
+        }
+        setDraft(null)
+        rest.onBlur?.(e)
+      }}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') e.currentTarget.blur()
+        rest.onKeyDown?.(e)
+      }}
+    />
   )
 }
