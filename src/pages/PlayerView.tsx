@@ -13,7 +13,7 @@ import { XpPanel } from '../components/XpPanel'
 import { Badge, Button, Card, Input, SectionTitle } from '../components/ui'
 import { logNote } from '../lib/actions'
 import { ancestryTraitLabel } from '../lib/ancestry'
-import { totalDefense } from '../lib/characterMath'
+import { bonusSources, computeDefense, formatBonus, withGearEffects } from '../lib/gear'
 import { RARITY_STYLE, toCarriedArmor, toCarriedWeapon, toInventoryItem } from '../lib/items'
 import type { ShopEntry } from '../lib/items'
 import { listenCharacter, listenCharacters, listenCustomItems, updateCharacter } from '../lib/store'
@@ -74,27 +74,33 @@ export function PlayerView({
     await logNote(actor, `${delta > 0 ? 'recuperou' : 'sofreu'} ${Math.abs(delta)} PV (${newCurrent}/${character.hp.max})`, 'hp')
   }
 
-  async function toggleEquip(kind: 'weapon' | 'armor', id: string) {
+  /**
+   * Toda mudança de item passa por aqui: além dos itens, grava a Defesa e os PV
+   * que eles passam a dar — equipou, vale; guardou ou jogou fora, deixa de valer.
+   */
+  async function saveItems(patch: Partial<Character>) {
+    if (!character) return
+    await updateCharacter(table.id, character.id, withGearEffects(character, patch))
+  }
+
+  async function toggleEquip(kind: 'weapon' | 'armor' | 'equipment', id: string) {
     if (!character) return
     if (kind === 'weapon') {
-      const weapons = character.weapons.map((w) => (w.id === id ? { ...w, equipped: !w.equipped } : w))
-      await updateCharacter(table.id, character.id, { weapons })
+      await saveItems({ weapons: character.weapons.map((w) => (w.id === id ? { ...w, equipped: !w.equipped } : w)) })
+    } else if (kind === 'armor') {
+      await saveItems({ armor: character.armor.map((a) => (a.id === id ? { ...a, equipped: !a.equipped } : a)) })
     } else {
-      const armor = character.armor.map((a) => (a.id === id ? { ...a, equipped: !a.equipped } : a))
-      await updateCharacter(table.id, character.id, { armor, defense: totalDefense(character.baseDefense, armor) })
+      await saveItems({
+        equipment: character.equipment.map((i) => (i.id === id ? { ...i, equipped: i.equipped === false } : i)),
+      })
     }
   }
 
   async function removeItem(kind: 'weapon' | 'armor' | 'equipment', id: string) {
     if (!character) return
-    if (kind === 'weapon') {
-      await updateCharacter(table.id, character.id, { weapons: character.weapons.filter((w) => w.id !== id) })
-    } else if (kind === 'armor') {
-      const armor = character.armor.filter((a) => a.id !== id)
-      await updateCharacter(table.id, character.id, { armor, defense: totalDefense(character.baseDefense, armor) })
-    } else {
-      await updateCharacter(table.id, character.id, { equipment: character.equipment.filter((i) => i.id !== id) })
-    }
+    if (kind === 'weapon') await saveItems({ weapons: character.weapons.filter((w) => w.id !== id) })
+    else if (kind === 'armor') await saveItems({ armor: character.armor.filter((a) => a.id !== id) })
+    else await saveItems({ equipment: character.equipment.filter((i) => i.id !== id) })
   }
 
   async function changeQty(id: string, delta: number) {
@@ -102,7 +108,7 @@ export function PlayerView({
     const equipment = character.equipment
       .map((i) => (i.id === id ? { ...i, qty: i.qty + delta } : i))
       .filter((i) => i.qty > 0)
-    await updateCharacter(table.id, character.id, { equipment })
+    await saveItems({ equipment })
   }
 
   /**
@@ -112,24 +118,17 @@ export function PlayerView({
    */
   async function buy(entry: ShopEntry) {
     if (!character || character.gold < entry.custo) return
+    const gold = character.gold - entry.custo
     if (entry.kind === 'weapon') {
-      await updateCharacter(table.id, character.id, {
-        gold: character.gold - entry.custo,
-        weapons: [...character.weapons, toCarriedWeapon(entry)],
-      })
+      await saveItems({ gold, weapons: [...character.weapons, toCarriedWeapon(entry)] })
     } else if (entry.kind === 'armor') {
-      const armor = [...character.armor, toCarriedArmor(entry)]
-      await updateCharacter(table.id, character.id, {
-        gold: character.gold - entry.custo,
-        armor,
-        defense: totalDefense(character.baseDefense, armor),
-      })
+      await saveItems({ gold, armor: [...character.armor, toCarriedArmor(entry)] })
     } else {
       const existing = character.equipment.find((i) => i.name === entry.name)
       const equipment = existing
         ? character.equipment.map((i) => (i.name === entry.name ? { ...i, qty: i.qty + 1 } : i))
         : [...character.equipment, toInventoryItem(entry)]
-      await updateCharacter(table.id, character.id, { gold: character.gold - entry.custo, equipment })
+      await saveItems({ gold, equipment })
     }
     await logNote(actor, `comprou ${entry.icon ? entry.icon + ' ' : ''}${entry.name} por ${entry.custo} moedas`, 'note')
   }
@@ -194,9 +193,15 @@ export function PlayerView({
                     style={{ width: `${Math.max(0, (character.hp.current / character.hp.max) * 100)}%` }}
                   />
                 </div>
-                <span className="text-sm text-purple-100">
+                <span className="text-sm text-purple-100" data-hp="">
                   {character.hp.current} / {character.hp.max}
                 </span>
+                {character.gearHpBonus ? (
+                  <span className="text-[10px] text-emerald-300/80" title="PV máximos que os itens equipados estão somando">
+                    ({character.gearHpBonus > 0 ? '+' : '−'}
+                    {Math.abs(character.gearHpBonus)} de itens)
+                  </span>
+                ) : null}
               </div>
               <div className="mt-1 flex items-center gap-1">
                 <Input type="number" value={hpDelta} onChange={(e) => setHpDelta(Number(e.target.value))} className="w-16" />
@@ -215,7 +220,10 @@ export function PlayerView({
             </div>
             <div>
               <p className="text-xs uppercase text-purple-400/60">Defesa</p>
-              <p className="text-xl text-purple-100">{character.defense}</p>
+              <p className="text-xl text-purple-100" data-defense="">
+                {character.defense}
+              </p>
+              <DefenseBreakdown character={character} />
             </div>
             <div>
               <p className="text-xs uppercase text-purple-400/60">Moedas</p>
@@ -295,7 +303,7 @@ export function PlayerView({
                     const baseDefense = Number(e.target.value)
                     updateCharacter(table.id, character.id, {
                       baseDefense,
-                      defense: totalDefense(baseDefense, character.armor),
+                      defense: computeDefense({ ...character, baseDefense }),
                     })
                   }}
                   className="w-20"
@@ -417,18 +425,30 @@ export function PlayerView({
           </div>
           <div className="mt-3">
             <p className="mb-1 text-xs uppercase text-purple-400/60">Equipamento</p>
-            {character.equipment.map((i) => (
-              <div key={i.id} className="flex items-start justify-between gap-2 py-0.5 text-sm">
-                <span className="min-w-0">
+            {character.equipment.map((i) => {
+              // Só item que dá bônus tem "usar/guardar": para uma corda, estar
+              // "em uso" não muda nada na ficha.
+              const hasBonus = Boolean(i.bonuses?.length)
+              const inUse = i.equipped !== false
+              return (
+              <div key={i.id} data-inventory-item={i.name} className="flex items-start justify-between gap-2 py-0.5 text-sm">
+                <span className={`min-w-0 ${hasBonus && !inUse ? 'opacity-50' : ''}`}>
                   <span className="flex flex-wrap items-center gap-1">
                     {i.icon && <span>{i.icon}</span>}
-                    <span className={i.rarity ? RARITY_STYLE[i.rarity] : 'text-purple-100'}>{i.name}</span>
+                    <span className={`${i.rarity ? RARITY_STYLE[i.rarity] : 'text-purple-100'} ${hasBonus && !inUse ? 'line-through' : ''}`}>
+                      {i.name}
+                    </span>
                     {i.magical && <Badge tone="good">mágico</Badge>}
                     {i.charges ? <span className="text-xs text-purple-300/50">{i.charges} cargas</span> : null}
                   </span>
                   <ItemFlavor item={i} />
                 </span>
-                <span className="flex items-center gap-2">
+                <span className="flex shrink-0 items-center gap-2">
+                  {hasBonus && (
+                    <button className="text-xs text-purple-400 hover:text-purple-200" onClick={() => toggleEquip('equipment', i.id)}>
+                      {inUse ? 'guardar' : 'usar'}
+                    </button>
+                  )}
                   <button className="text-purple-400 hover:text-purple-200" onClick={() => changeQty(i.id, -1)}>
                     −
                   </button>
@@ -438,7 +458,8 @@ export function PlayerView({
                   </button>
                 </span>
               </div>
-            ))}
+              )
+            })}
           </div>
 
         </Card>
@@ -536,13 +557,47 @@ function CharacterName({ name, onRename }: { name: string; onRename: (name: stri
 
 /** Linha de apoio de um item: descrição e efeitos, quando o item tem. */
 function ItemFlavor({ item }: { item: CarriedItemFlavor }) {
-  if (!item.description && !item.effectNote) return null
+  const bonuses = item.bonuses ?? []
+  if (!item.description && !item.effectNote && bonuses.length === 0) return null
   return (
-    <span className="block text-[11px] leading-snug text-purple-400/60">
-      {item.effectNote && <span className="text-[color:var(--gold)]/80">✦ {item.effectNote}</span>}
-      {item.effectNote && item.description && ' · '}
-      {item.description}
-    </span>
+    <>
+      {bonuses.length > 0 && (
+        <span className="mt-0.5 flex flex-wrap gap-1" data-item-bonuses="">
+          {bonuses.map((b, i) => (
+            <span
+              key={i}
+              title="Aplicado sozinho enquanto o item está equipado"
+              className="rounded border border-emerald-700/50 bg-emerald-950/30 px-1 text-[10px] leading-4 text-emerald-200"
+            >
+              {formatBonus(b)}
+            </span>
+          ))}
+        </span>
+      )}
+      {(item.description || item.effectNote) && (
+        <span className="block text-[11px] leading-snug text-purple-400/60">
+          {item.effectNote && <span className="text-[color:var(--gold)]/80">✦ {item.effectNote}</span>}
+          {item.effectNote && item.description && ' · '}
+          {item.description}
+        </span>
+      )}
+    </>
+  )
+}
+
+/**
+ * A conta da Defesa, à vista: base, armaduras e bônus de itens. Sem ela o
+ * número mudava sozinho ao equipar algo e ninguém sabia de onde vinha.
+ */
+function DefenseBreakdown({ character }: { character: Character }) {
+  const parts: string[] = []
+  for (const a of character.armor.filter((x) => x.equipped && x.defesaBonus)) parts.push(`+${a.defesaBonus} ${a.name}`)
+  for (const src of bonusSources(character, 'defesa')) parts.push(`${src.value > 0 ? '+' : '−'}${Math.abs(src.value)} ${src.name}`)
+  if (parts.length === 0) return null
+  return (
+    <p className="max-w-[16rem] text-[10px] leading-snug text-purple-400/60" data-defense-breakdown="">
+      {character.baseDefense} base {parts.join(' ')}
+    </p>
   )
 }
 

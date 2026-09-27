@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { ARMOR_NOTE } from '../data/equipment'
+import { formatBonus } from '../lib/gear'
 import { RARITY_STYLE, shopEntries } from '../lib/items'
 import type { ShopEntry } from '../lib/items'
 import { CUSTOM_ITEM_KIND_LABELS, RARITY_LABELS } from '../types'
@@ -156,6 +157,15 @@ export function ShopPanel({
                       {i.extra}
                     </span>
                   )}
+                  {i.bonuses?.map((b, n) => (
+                    <span
+                      key={n}
+                      title="Entra na ficha sozinho enquanto o item estiver equipado"
+                      className="rounded border border-emerald-700/50 bg-emerald-950/30 px-1.5 py-px text-[11px] text-emerald-200"
+                    >
+                      {formatBonus(b)}
+                    </span>
+                  ))}
                   {i.magical && <Badge tone="good">mágico</Badge>}
                   {forged && i.rarity && i.rarity !== 'comum' && <Badge>{RARITY_LABELS[i.rarity]}</Badge>}
                 </p>

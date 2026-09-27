@@ -2,14 +2,16 @@ import { useEffect, useState } from 'react'
 import { logNote } from '../lib/actions'
 import { newId } from '../lib/id'
 import { RARITY_STYLE, customItemToEntry, effectDetails, toCarriedArmor, toCarriedWeapon, toInventoryItem } from '../lib/items'
-import { totalDefense } from '../lib/characterMath'
+import { cleanBonuses, formatBonus, withGearEffects } from '../lib/gear'
 import { deleteCustomItem, listenCustomItems, saveCustomItem, updateCharacter } from '../lib/store'
 import {
   CUSTOM_ITEM_KIND_LABELS,
   DAMAGE_TYPES,
   EFFECT_TRIGGERS,
   EFFECT_TRIGGER_LABELS,
+  ITEM_BONUS_TARGETS,
   ITEM_RARITIES,
+  itemBonusLabel,
   RARITY_LABELS,
   WEAPON_SKILLS,
 } from '../types'
@@ -20,6 +22,7 @@ import type {
   DamageType,
   EffectTrigger,
   GameTable,
+  ItemBonusTarget,
   ItemEffect,
   ItemRarity,
 } from '../types'
@@ -62,7 +65,7 @@ export function ItemForge({ table, characters }: { table: GameTable; characters:
 
   async function save() {
     if (!draft || !draft.name.trim()) return
-    await saveCustomItem(table.id, { ...draft, name: draft.name.trim() })
+    await saveCustomItem(table.id, { ...draft, name: draft.name.trim(), bonuses: cleanBonuses(draft.bonuses) })
     setDraft(null)
     setFeedback('Item guardado no catálogo da mesa.')
     setTimeout(() => setFeedback(''), 2500)
@@ -73,17 +76,17 @@ export function ItemForge({ table, characters }: { table: GameTable; characters:
     const c = characters.find((x) => x.id === characterId)
     if (!c) return
     const entry = customItemToEntry(item)
+    // Como na compra: o item entra e a ficha já recalcula o que ele dá.
     if (item.kind === 'weapon') {
-      await updateCharacter(table.id, c.id, { weapons: [...c.weapons, toCarriedWeapon(entry)] })
+      await updateCharacter(table.id, c.id, withGearEffects(c, { weapons: [...c.weapons, toCarriedWeapon(entry)] }))
     } else if (item.kind === 'armor') {
-      const armor = [...c.armor, toCarriedArmor(entry)]
-      await updateCharacter(table.id, c.id, { armor, defense: totalDefense(c.baseDefense, armor) })
+      await updateCharacter(table.id, c.id, withGearEffects(c, { armor: [...c.armor, toCarriedArmor(entry)] }))
     } else {
       const existing = c.equipment.find((i) => i.name === item.name)
       const equipment = existing
         ? c.equipment.map((i) => (i.name === item.name ? { ...i, qty: i.qty + 1 } : i))
         : [...c.equipment, toInventoryItem(entry)]
-      await updateCharacter(table.id, c.id, { equipment })
+      await updateCharacter(table.id, c.id, withGearEffects(c, { equipment }))
     }
     await logNote(actor, `entregou ${item.icon ? item.icon + ' ' : ''}${item.name} para ${c.name}`, 'table')
     setFeedback(`${item.name} entregue a ${c.name}.`)
@@ -168,6 +171,15 @@ function ItemRow({
         </label>
       </div>
 
+      {entry.bonuses && (
+        <div className="flex flex-wrap gap-1">
+          {entry.bonuses.map((b, i) => (
+            <span key={i} className="rounded border border-emerald-700/50 bg-emerald-950/30 px-1 text-[10px] leading-4 text-emerald-200">
+              {formatBonus(b)}
+            </span>
+          ))}
+        </div>
+      )}
       {item.description && <p className="text-xs text-purple-300/60">{item.description}</p>}
       {entry.note && !item.description && <p className="text-xs text-purple-300/50">{entry.note}</p>}
       {details && <p className="text-xs text-[color:var(--gold)]/80">✦ {details}</p>}
@@ -408,9 +420,60 @@ function ItemForm({
         )}
       </div>
 
+      <div className="flex flex-col gap-2 border-t border-purple-900/30 pt-2" data-bonus-editor="">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-xs uppercase tracking-[0.14em] text-purple-400/60">Bônus automáticos</span>
+          <Button
+            className="text-xs"
+            onClick={() => patch({ bonuses: [...(draft.bonuses ?? []), { target: 'defesa', value: 1 }] })}
+          >
+            + Bônus
+          </Button>
+        </div>
+        <p className="text-[11px] text-purple-400/50">
+          Entram na ficha sozinhos enquanto o item estiver equipado: a Defesa e os PV mudam na hora, e ataque, dano,
+          feitiçaria e testes já saem somados na rolagem. Use valor negativo para uma maldição.
+        </p>
+        {(draft.bonuses ?? []).map((b, idx) => (
+          <div key={idx} className="flex flex-wrap items-center gap-2">
+            <Select
+              value={b.target}
+              onChange={(ev) =>
+                patch({
+                  bonuses: (draft.bonuses ?? []).map((x, i) => (i === idx ? { ...x, target: ev.target.value as ItemBonusTarget } : x)),
+                })
+              }
+              className="w-auto"
+            >
+              {ITEM_BONUS_TARGETS.map((t) => (
+                <option key={t} value={t}>
+                  {itemBonusLabel(t)}
+                </option>
+              ))}
+            </Select>
+            <Input
+              type="number"
+              value={b.value}
+              onChange={(ev) =>
+                patch({
+                  bonuses: (draft.bonuses ?? []).map((x, i) => (i === idx ? { ...x, value: Number(ev.target.value) } : x)),
+                })
+              }
+              style={{ width: '5rem' }}
+            />
+            <button
+              className="text-xs text-red-400 hover:text-red-200"
+              onClick={() => patch({ bonuses: (draft.bonuses ?? []).filter((_, i) => i !== idx) })}
+            >
+              remover
+            </button>
+          </div>
+        ))}
+      </div>
+
       <div className="flex flex-col gap-2 border-t border-purple-900/30 pt-2">
         <div className="flex items-center justify-between">
-          <span className="text-xs uppercase tracking-[0.14em] text-purple-400/60">Efeitos</span>
+          <span className="text-xs uppercase tracking-[0.14em] text-purple-400/60">Efeitos (narrados)</span>
           <Button
             className="text-xs"
             onClick={() =>

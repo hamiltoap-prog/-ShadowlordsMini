@@ -122,6 +122,14 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   ("ao acertar: Queimadura, 1-2 em 1d6"). Cada item pode ir para a loja, ser **entregue direto na
   ficha** de alguém (tesouro, recompensa) ou os dois. O que o item tem de próprio viaja junto
   para a ficha, então os bônus entram na rolagem e o efeito é narrado no acerto
+- ⚙️ **Bônus de equipamento automáticos**: na forja, o Mestre dá a qualquer item bônus de
+  **Defesa**, **PV máximos**, **ataque**, **dano**, **feitiçaria**, **todos os testes** ou
+  **testes de um atributo** (valor negativo vira maldição). Enquanto o item está equipado, o
+  sistema aplica sozinho: a Defesa e os PV mudam na hora, e as rolagens já saem somadas
+  ("+ equipamento"). Guardou, jogou fora ou vendeu, deixa de valer. A ficha mostra de onde vem
+  a Defesa ("11 base +2 Couraça +1 Anel"), anéis e amuletos ganham "usar/guardar", e a loja
+  mostra os bônus antes da compra. Tirar um item de PV tira os mesmos PV que ele deu (nada de
+  cura grátis pondo e tirando), mas nunca derruba ninguém abaixo de 1 PV
 - 🛒 **Loja liberada pelo Mestre**: quando ele abre, a loja aparece sozinha e em destaque na
   ficha de cada jogador — com armas, armaduras e equipamento em abas, busca por nome, o preço ao
   lado das moedas que a pessoa tem e o botão de comprar desligado no que não dá para pagar. A

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { SPELLS } from '../data/spells'
+import { gearBonus, gearTestBonus } from '../lib/gear'
 import { ancestryAttackBonus, ancestryDamageBonus, ancestrySpellBonus } from '../lib/ancestry'
 import { MAX_HP_ON_ROLL, affordableHpBoost, hpNeededForSuccess, requestRoll, spendHpOnRoll } from '../lib/rollFlow'
 import { listenCharacters, listenMyRollRequests, listenNPCs } from '../lib/store'
@@ -113,6 +114,12 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
   const magicAttackBonus = weapon?.attackBonus ?? 0
   const magicDamageBonus = weapon?.damageBonus ?? 0
   const raceSpellBonus = ancestrySpellBonus(character)
+  // Bônus dos itens equipados (anel, amuleto, armadura encantada...). Entram
+  // sozinhos, como os de raça — o jogador não precisa lembrar de somar.
+  const gearTest = gearTestBonus(character, attrKey)
+  const gearAttack = gearBonus(character, 'ataque')
+  const gearDamage = gearBonus(character, 'dano')
+  const gearSpell = gearBonus(character, 'feiticaria')
   const inCombat = table.combatActive && table.combatOrder.includes(`char:${character.id}`)
   const combatants = inCombat ? combatantsFor(table, character, tableChars, tableNpcs) : []
   // Se o alvo saiu do combate (ou o combate acabou), a escolha se desfaz sozinha.
@@ -128,13 +135,14 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
       const skillLabel = skillName ? ` + ${skillName}` : ''
       const raceLabel = (bonus: number) => (bonus ? ' + raça' : '')
       const magicLabel = (bonus: number) => (bonus ? ' + mágico' : '')
+      const gearLabel = (bonus: number) => (bonus ? ` ${bonus > 0 ? '+' : '−'} equipamento` : '')
       const intent =
         kind === 'attribute_test'
           ? {
               kind,
-              description: `Teste de ${ATTRIBUTE_LABELS[attrKey]}${skillLabel} (dif. ${difficulty})`,
+              description: `Teste de ${ATTRIBUTE_LABELS[attrKey]}${skillLabel}${gearLabel(gearTest)} (dif. ${difficulty})`,
               attrKey,
-              attrMod,
+              attrMod: attrMod + gearTest,
               skillBonus,
               skillName,
               target: difficulty,
@@ -142,25 +150,25 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
           : kind === 'attack'
             ? {
                 kind,
-                description: `Ataque com ${weapon?.name ?? 'desarmado'}${skillLabel}${raceLabel(raceAttackBonus)}${magicLabel(magicAttackBonus)}${target ? ` contra ${target.name}` : ''} (Defesa ${effectiveDefense})`,
+                description: `Ataque com ${weapon?.name ?? 'desarmado'}${skillLabel}${raceLabel(raceAttackBonus)}${magicLabel(magicAttackBonus)}${gearLabel(gearAttack)}${target ? ` contra ${target.name}` : ''} (Defesa ${effectiveDefense})`,
                 attrKey,
-                attrMod: attrMod + raceAttackBonus + magicAttackBonus,
+                attrMod: attrMod + raceAttackBonus + magicAttackBonus + gearAttack,
                 skillBonus,
                 skillName,
                 target: effectiveDefense,
                 weaponLabel: weapon?.name ?? 'Desarmado',
                 weaponDano: weapon?.dano ?? '1d3',
                 damageAttrMod:
-                  (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus + magicDamageBonus,
+                  (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus + magicDamageBonus + gearDamage,
                 weaponEffect: weapon?.effectNote,
                 targetName: target?.name,
               }
             : kind === 'spell'
               ? {
                   kind,
-                  description: `Conjurar ${spell.name}${target ? ` em ${target.name}` : ''} (-${spell.custo} PV, ${ATTRIBUTE_LABELS[attrKey]}${raceLabel(raceSpellBonus)})`,
+                  description: `Conjurar ${spell.name}${target ? ` em ${target.name}` : ''} (-${spell.custo} PV, ${ATTRIBUTE_LABELS[attrKey]}${raceLabel(raceSpellBonus)}${gearLabel(gearSpell)})`,
                   attrKey,
-                  attrMod: attrMod + raceSpellBonus,
+                  attrMod: attrMod + raceSpellBonus + gearSpell,
                   skillBonus,
                   skillName,
                   target: 13,
@@ -171,11 +179,11 @@ export function ActionPanel({ table, character, uid }: { table: GameTable; chara
                 }
               : {
                   kind,
-                  description: `Dano com ${weapon?.name ?? 'desarmado'}${raceLabel(raceDamageBonus)}${magicLabel(magicDamageBonus)}${target ? ` em ${target.name}` : ''}`,
+                  description: `Dano com ${weapon?.name ?? 'desarmado'}${raceLabel(raceDamageBonus)}${magicLabel(magicDamageBonus)}${gearLabel(gearDamage)}${target ? ` em ${target.name}` : ''}`,
                   weaponLabel: weapon?.name ?? 'Desarmado',
                   weaponDano: weapon?.dano ?? '1d3',
                   damageAttrMod:
-                    (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus + magicDamageBonus,
+                    (damageAttr ? character.attributes[damageAttr].mod : 0) + raceDamageBonus + magicDamageBonus + gearDamage,
                   targetName: target?.name,
                 }
       const { pendingId } = await requestRoll(table, character, uid, intent)

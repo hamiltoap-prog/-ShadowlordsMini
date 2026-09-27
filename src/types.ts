@@ -32,6 +32,60 @@ export interface CarriedItemFlavor {
   description?: string
   /** Resumo dos efeitos, pronto para entrar na narração da rolagem. */
   effectNote?: string
+  /** Bônus que o sistema aplica sozinho enquanto o item está equipado. */
+  bonuses?: ItemBonus[]
+}
+
+/**
+ * Onde um bônus de item entra na ficha.
+ * - `defesa`: soma na Defesa;
+ * - `pvMax`: soma nos PV máximos;
+ * - `ataque` / `dano`: somam nas rolagens de ataque e de dano, com qualquer arma;
+ * - `feiticaria`: soma na rolagem de conjurar feitiço;
+ * - `testes`: soma em todo teste de atributo;
+ * - `teste:<atributo>`: soma só nos testes daquele atributo.
+ */
+export type ItemBonusTarget =
+  | 'defesa'
+  | 'pvMax'
+  | 'ataque'
+  | 'dano'
+  | 'feiticaria'
+  | 'testes'
+  | `teste:${AttributeKey}`
+
+export interface ItemBonus {
+  target: ItemBonusTarget
+  value: number
+}
+
+export const ITEM_BONUS_TARGETS: ItemBonusTarget[] = [
+  'defesa',
+  'pvMax',
+  'ataque',
+  'dano',
+  'feiticaria',
+  'testes',
+  ...ATTRIBUTE_KEYS.map((k) => `teste:${k}` as const),
+]
+
+export function itemBonusLabel(target: ItemBonusTarget): string {
+  switch (target) {
+    case 'defesa':
+      return 'Defesa'
+    case 'pvMax':
+      return 'PV máximos'
+    case 'ataque':
+      return 'Ataque'
+    case 'dano':
+      return 'Dano'
+    case 'feiticaria':
+      return 'Feitiçaria'
+    case 'testes':
+      return 'Todos os testes'
+    default:
+      return `Testes de ${ATTRIBUTE_LABELS[target.slice(6) as AttributeKey]}`
+  }
 }
 
 export interface InventoryItem extends CarriedItemFlavor {
@@ -41,6 +95,9 @@ export interface InventoryItem extends CarriedItemFlavor {
   note?: string
   /** Usos restantes de um item mágico com cargas. */
   charges?: number
+  /** Em uso (anel no dedo, amuleto no pescoço). Só importa para item com
+   *  bônus; sem o campo, vale como em uso. */
+  equipped?: boolean
 }
 
 export interface CarriedWeapon extends CarriedItemFlavor {
@@ -157,6 +214,8 @@ export interface CustomItem {
   /** Usos de um item mágico com cargas (0 ou ausente = ilimitado). */
   charges?: number
   effects?: ItemEffect[]
+  /** Bônus que entram na ficha sozinhos enquanto o item está equipado. */
+  bonuses?: ItemBonus[]
 }
 
 export interface CharacterSkill {
@@ -219,6 +278,9 @@ export interface Character {
   /** Fonte de luz ativa até este horário (epoch ms) — ilumina a área ao redor
    * do token deste personagem na tela de jogo enquanto durar. */
   lightUntil?: number
+  /** Quantos PV máximos os itens equipados estão somando agora. Guardado para
+   *  que tirar ou pôr um item mude os PV exatamente pela diferença. */
+  gearHpBonus?: number
 }
 
 export interface NPCAttack {

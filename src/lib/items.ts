@@ -6,9 +6,11 @@ import type {
   CustomItem,
   CustomItemKind,
   InventoryItem,
+  ItemBonus,
   ItemEffect,
   ItemRarity,
 } from '../types'
+import { cleanBonuses } from './gear'
 import { newId } from './id'
 
 /**
@@ -43,6 +45,8 @@ export interface ShopEntry {
   attackBonus?: number
   damageBonus?: number
   charges?: number
+  /** Bônus que entram na ficha sozinhos enquanto o item está equipado. */
+  bonuses?: ItemBonus[]
 }
 
 /** Resume os efeitos numa linha só, que é o que a narração da rolagem usa. */
@@ -79,6 +83,7 @@ export function customItemToEntry(item: CustomItem): ShopEntry {
     description: item.description,
     effectNote: effectSummary(item.effects),
     charges: item.charges,
+    bonuses: cleanBonuses(item.bonuses),
   }
   if (item.kind === 'weapon') {
     const bonus = [
@@ -167,6 +172,7 @@ export function toCarriedWeapon(entry: ShopEntry): CarriedWeapon {
     attackBonus: entry.attackBonus,
     damageBonus: entry.damageBonus,
     alcance: entry.alcance,
+    bonuses: entry.bonuses,
   }
 }
 
@@ -182,6 +188,7 @@ export function toCarriedArmor(entry: ShopEntry): CarriedArmor {
     rarity: entry.rarity,
     description: entry.description,
     effectNote: entry.effectNote,
+    bonuses: entry.bonuses,
   }
 }
 
@@ -196,6 +203,9 @@ export function toInventoryItem(entry: ShopEntry): InventoryItem {
     description: entry.description,
     effectNote: entry.effectNote,
     charges: entry.charges,
+    bonuses: entry.bonuses,
+    // Item que dá bônus já entra em uso: comprou o anel, ele está no dedo.
+    equipped: entry.bonuses?.length ? true : undefined,
   }
 }
 
