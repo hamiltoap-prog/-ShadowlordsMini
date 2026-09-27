@@ -135,7 +135,10 @@ export function PlayerView({
   }
 
   return (
-    <div className="mx-auto flex max-w-5xl flex-col gap-4 p-4 pb-16 lg:grid lg:grid-cols-[1fr_340px] lg:items-start">
+    // `minmax(0, 1fr)`, e não `1fr`: uma coluna `1fr` não encolhe abaixo do
+    // conteúdo mais largo dela, e um texto numa linha só (a descrição de um item
+    // da loja, por exemplo) empurrava a coluna da direita para fora da tela.
+    <div className="mx-auto flex max-w-5xl flex-col gap-4 p-4 pb-16 lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:items-start">
       {!asGM && <DiceOverlay tableId={table.id} isGM={false} />}
 
       <div className="flex flex-col gap-4">

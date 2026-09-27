@@ -237,13 +237,17 @@ export function ScenePage() {
     return () => clearInterval(id)
   }, [])
 
+  // As escutas só começam com o login pronto. Quem abre a tela de jogo direto
+  // pelo link, sem passar pela página inicial, ainda está entrando quando a
+  // página monta: uma escuta aberta antes disso é recusada pelo banco, morre,
+  // e a tela ficava presa em "Carregando".
   useEffect(() => {
-    if (!firebaseConfigured) return
+    if (!firebaseConfigured || !uid) return
     return listenTable(tableId, setTable)
-  }, [tableId])
+  }, [tableId, uid])
 
   useEffect(() => {
-    if (!firebaseConfigured) return
+    if (!firebaseConfigured || !uid) return
     return listenScene(tableId, (raw) => {
       const s = normalizeScene(raw)
       const dragging = dragIdRef.current
@@ -260,7 +264,7 @@ export function ScenePage() {
       }
       setSceneState(s)
     })
-  }, [tableId])
+  }, [tableId, uid])
 
   const isGM = Boolean(uid && table && table.gmUid === uid)
 
@@ -270,14 +274,14 @@ export function ScenePage() {
   }, [tableId, isGM])
 
   useEffect(() => {
-    if (!firebaseConfigured) return
+    if (!firebaseConfigured || !uid) return
     const unsubChars = listenCharacters(tableId, setCharacters)
     const unsubNpcs = listenNPCs(tableId, setNpcs)
     return () => {
       unsubChars()
       unsubNpcs()
     }
-  }, [tableId])
+  }, [tableId, uid])
 
   // O palco é o maior retângulo com a proporção da cena que cabe no espaço
   // que sobra da barra de cima — largura E altura. Medir aqui (em vez de deixar
@@ -303,14 +307,14 @@ export function ScenePage() {
   }, [tool])
 
   useEffect(() => {
-    if (!firebaseConfigured) return
+    if (!firebaseConfigured || !uid) return
     return listenAudioTracks(tableId, setAudioTracks)
-  }, [tableId])
+  }, [tableId, uid])
 
   // Marcações do mapa: entram, piscam e saem sozinhas. Guardamos as já vistas
   // para uma marcação antiga não voltar a piscar quando o listener recarrega.
   useEffect(() => {
-    if (!firebaseConfigured) return
+    if (!firebaseConfigured || !uid) return
     return listenScenePings(tableId, (list) => {
       const fresh = list.filter((p) => p.at > Date.now() - PING_LIFETIME_MS && !seenPings.current.has(p.id))
       if (fresh.length === 0) return
@@ -320,7 +324,7 @@ export function ScenePage() {
       }
       setPings((prev) => [...prev, ...fresh])
     })
-  }, [tableId])
+  }, [tableId, uid])
 
   useEffect(() => {
     if (!isGM) return
