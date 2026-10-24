@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { AudioChannel } from '../components/TableAudio'
 import type { AudioChannelHandle, AudioStatus } from '../components/TableAudio'
 import { DiceOverlay } from '../components/DiceOverlay'
+import { StoryOverlay } from '../components/story/StoryOverlay'
 import { SceneAudioBar } from '../components/SceneAudioBar'
 import { SurvivalControls } from '../components/SurvivalControls'
 import { SurvivalHud } from '../components/SurvivalHud'
@@ -864,6 +865,11 @@ export function ScenePage() {
           rolagens secretas do Mestre ficam de fora, porque só entram no log
           secreto, que esta tela não escuta. */}
       <DiceOverlay tableId={tableId} isGM={false} />
+
+      {/* Modo apresentação: quando o Mestre apresenta uma história, ela cobre
+          a tela de jogo de todos — mesmo a tela de espera. As notas vêm da
+          biblioteca, que só o Mestre lê. */}
+      <StoryOverlay tableId={tableId} isGM={isGM} library={library} enabled={Boolean(firebaseConfigured && uid)} />
 
       {/* Os canais em si não desenham nada — só tocam. Ficam fora da tela de
           espera para o som começar junto com a cena. */}

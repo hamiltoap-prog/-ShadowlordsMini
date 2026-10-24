@@ -9,8 +9,6 @@ import type { Scene, SceneAudio, SceneLibraryItem, SceneSnapshot } from '../type
  * biblioteca guardava só a imagem, continuam funcionando: trocam só o mapa.
  */
 
-export const NO_FOLDER = '(Sem pasta)'
-
 /** O retrato da cena de agora, pronto para guardar. */
 export function snapshotOf(scene: Scene): SceneSnapshot {
   return {
@@ -54,17 +52,4 @@ export function openLibraryItem(scene: Scene, item: SceneLibraryItem): Scene {
     audio: audioWorthRestoring(s.audio) ? s.audio : scene.audio,
     fromLibraryId: item.id,
   }
-}
-
-/** Mapas e cenas agrupados por pasta, com "sem pasta" por último. */
-export function groupByFolder(items: SceneLibraryItem[]): [string, SceneLibraryItem[]][] {
-  const groups: Record<string, SceneLibraryItem[]> = {}
-  for (const item of items) {
-    const key = item.folder?.trim() || NO_FOLDER
-    groups[key] = groups[key] ?? []
-    groups[key].push(item)
-  }
-  return Object.entries(groups)
-    .map(([k, list]) => [k, [...list].sort((a, b) => a.label.localeCompare(b.label))] as [string, SceneLibraryItem[]])
-    .sort(([a], [b]) => (a === NO_FOLDER ? 1 : b === NO_FOLDER ? -1 : a.localeCompare(b)))
 }

@@ -326,3 +326,54 @@ input[type='range'] {
 .animate-fade-in-out {
   animation: fade-in-out 3.2s ease-in-out;
 }
+
+/* ---------------------------------------------------------------------------
+ * Modo apresentação: entradas dos elementos e transições entre slides.
+ * As durações vêm do slide (style inline); aqui só o movimento.
+ * ------------------------------------------------------------------------- */
+@keyframes sl-aparecer { from { opacity: 0 } to { opacity: 1 } }
+@keyframes sl-subir { from { opacity: 0; transform: translateY(12%) } to { opacity: 1; transform: none } }
+@keyframes sl-descer { from { opacity: 0; transform: translateY(-12%) } to { opacity: 1; transform: none } }
+@keyframes sl-esquerda { from { opacity: 0; transform: translateX(14%) } to { opacity: 1; transform: none } }
+@keyframes sl-direita { from { opacity: 0; transform: translateX(-14%) } to { opacity: 1; transform: none } }
+@keyframes sl-zoom { from { opacity: 0; transform: scale(0.6) } to { opacity: 1; transform: none } }
+@keyframes sl-desfocar { from { opacity: 0; filter: blur(12px) } to { opacity: 1; filter: none } }
+.slide-entra-aparecer { animation-name: sl-aparecer; animation-fill-mode: both; animation-timing-function: ease-out }
+.slide-entra-subir { animation-name: sl-subir; animation-fill-mode: both; animation-timing-function: cubic-bezier(.2,.8,.2,1) }
+.slide-entra-descer { animation-name: sl-descer; animation-fill-mode: both; animation-timing-function: cubic-bezier(.2,.8,.2,1) }
+.slide-entra-esquerda { animation-name: sl-esquerda; animation-fill-mode: both; animation-timing-function: cubic-bezier(.2,.8,.2,1) }
+.slide-entra-direita { animation-name: sl-direita; animation-fill-mode: both; animation-timing-function: cubic-bezier(.2,.8,.2,1) }
+.slide-entra-zoom { animation-name: sl-zoom; animation-fill-mode: both; animation-timing-function: cubic-bezier(.2,.9,.3,1.2) }
+.slide-entra-desfocar { animation-name: sl-desfocar; animation-fill-mode: both; animation-timing-function: ease-out }
+
+/* Transições: o slide que entra (tr) e o que sai. */
+@keyframes tr-fade-in { from { opacity: 0 } to { opacity: 1 } }
+@keyframes tr-fade-out { from { opacity: 1 } to { opacity: 0 } }
+@keyframes tr-deslizar-in { from { transform: translateX(100%) } to { transform: none } }
+@keyframes tr-deslizar-out { from { transform: none } to { transform: translateX(-100%) } }
+@keyframes tr-cima-in { from { transform: translateY(100%) } to { transform: none } }
+@keyframes tr-cima-out { from { transform: none } to { transform: translateY(-100%) } }
+@keyframes tr-zoom-in { from { opacity: 0; transform: scale(1.18) } to { opacity: 1; transform: none } }
+@keyframes tr-zoom-out { from { opacity: 1; transform: none } to { opacity: 0; transform: scale(0.92) } }
+@keyframes tr-cortina-in { from { clip-path: inset(0 100% 0 0) } to { clip-path: inset(0 0 0 0) } }
+.slide-entra-tr-fade { animation: tr-fade-in ease-in-out both; z-index: 2 }
+.slide-sai-fade { animation: tr-fade-out ease-in-out both; z-index: 1 }
+.slide-entra-tr-deslizar { animation: tr-deslizar-in cubic-bezier(.65,0,.35,1) both }
+.slide-sai-deslizar { animation: tr-deslizar-out cubic-bezier(.65,0,.35,1) both }
+.slide-entra-tr-empurrar-cima { animation: tr-cima-in cubic-bezier(.65,0,.35,1) both }
+.slide-sai-empurrar-cima { animation: tr-cima-out cubic-bezier(.65,0,.35,1) both }
+.slide-entra-tr-zoom { animation: tr-zoom-in ease-out both; z-index: 2 }
+.slide-sai-zoom { animation: tr-zoom-out ease-in both; z-index: 1 }
+.slide-entra-tr-cortina { animation: tr-cortina-in cubic-bezier(.65,0,.35,1) both; z-index: 2 }
+.slide-sai-cortina { z-index: 1 }
+/* Escurecer: o que sai apaga até o preto, e só então o novo acende. */
+.slide-entra-tr-escurecer { animation: tr-fade-in ease-in-out both; z-index: 2 }
+.slide-sai-escurecer { animation: tr-fade-out ease-in-out both; z-index: 1 }
+
+/* Zoom lento no fundo, enquanto o slide está no ar (efeito cinema). */
+@keyframes sl-ken-burns { from { transform: scale(1) } to { transform: scale(1.12) translate(-1.5%, -1%) } }
+.slide-ken-burns { animation: sl-ken-burns 24s ease-in-out infinite alternate }
+
+@media (prefers-reduced-motion: reduce) {
+  [class*='slide-entra-'], [class*='slide-sai-'], .slide-ken-burns { animation-duration: 1ms !important; animation-delay: 0ms !important }
+}

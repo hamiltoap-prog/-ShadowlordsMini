@@ -25,6 +25,20 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   grade, luz, névoa, peças e o som que estava tocando. Monte o encontro antes da sessão e abra
   na hora; a cena aberta pode ser **gravada por cima** ("Atualizar") ou guardada como nova, e
   tudo fica organizado em pastas. Mapas guardados antes disso continuam lá, trocando só a imagem
+- 🗂️ **Pastas e subpastas** na biblioteca (cenas, histórias e ícones) e na aba NPCs (NPCs de
+  ficha completa e criaturas dividem as mesmas pastas): "Arco 1 › Masmorra". Cada item tem um
+  "mover para" com o caminho inteiro e um "+ nova pasta..."; cada pasta pode ser **renomeada**
+  ou **movida para dentro de outra**, levando as subpastas junto, numa gravação só. As pastas
+  fechadas são lembradas no navegador, e a aba NPCs ganhou busca pelo nome
+- 📖 **Modo apresentação**: o Mestre monta histórias em slides num editor de verdade —
+  fundo (cor ou imagem, com zoom lento de cinema), títulos, textos, imagens (o Drive serve),
+  retângulos, círculos e faixas em degradê; arrastar, redimensionar pelas alças, girar, ímã no
+  centro e nas bordas, camadas, desfazer/refazer, entradas animadas, elementos que aparecem
+  **no clique do Mestre**, transições entre slides e **notas do Mestre** por slide. Na hora,
+  "▶ apresentar" cobre a tela de jogo de todos (até a tela de espera); só o Mestre passa
+  (clique, →, espaço) e volta (←), minimiza só para ele ou fecha para todos. As notas ficam na
+  biblioteca do Mestre e **nunca vão para a tela dos jogadores**; quem entra no meio cai no
+  slide em que a mesa está, e corrigir a história no ar atualiza todo mundo na hora
 - 🖼️ **Enquadramento do mapa e escala**: o Mestre gira, aproxima, recorta e reposiciona a
   imagem do mapa, e define a escala em *quadrados de largura* — num mapa grande as peças
   encolhem juntas, mantendo a proporção entre elas (uma criatura Enorme sempre ocupa 3
@@ -232,6 +246,8 @@ VITE_USE_FIREBASE_EMULATOR=true
 npm run dev
 ```
 
+As regras puras (pastas, slides) têm verificações próprias: `npm run check`.
+
 ## Publicando para o grupo jogar (grátis)
 
 A forma mais simples é o **Firebase Hosting** (mesmo projeto que você já configurou):
@@ -272,7 +288,8 @@ banco de dados em qualquer uma delas, já que tudo roda no navegador do jogador.
    (arrastar e dar zoom na imagem de fundo) ou pintar a névoa de guerra. Os painéis do Mestre:
    **Mapa** (imagem, escala, grade, giro, tamanho, posição e recorte do palco), **Peças** (pôr
    personagens e criaturas no mapa, bandeja, tamanho de cada peça e acender a luz de um
-   personagem), **Biblioteca** (cenas guardadas e ícones prontos) e **Som** (o que toca agora).
+   personagem), **Biblioteca** (cenas guardadas, histórias para apresentar e ícones prontos, em pastas) e
+   **Som** (o que toca agora).
    O Mestre também pode arrastar imagens de outra aba direto para o mapa — com Shift, ela vira
    o mapa de fundo. O botão **🍖 Fome e sede** abre o controle das provisões e do grupo.
 

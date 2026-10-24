@@ -3,7 +3,9 @@ import { BESTIARY, BESTIARY_CATEGORIES } from '../data/bestiary'
 import { creatureArtUrl, hasOfficialArt, resolveCreaturePortrait } from '../data/creatureArt'
 import { roll, roll3d6 } from '../lib/dice'
 import { newId } from '../lib/id'
-import { addLogEntry, createNPC, deleteNPC, listenMonsterImages, setMonsterImage, updateCharacter, updateNPC } from '../lib/store'
+import { addLogEntry, createNPC, deleteNPC, listenMonsterImages, moveToFolder, setMonsterImage, updateCharacter, updateNPC } from '../lib/store'
+import { folderToSave, showPath } from '../lib/folders'
+import { FolderSelect, FolderTree } from './Folders'
 import { CREATURE_SIZES } from '../types'
 import type { Character, GameTable, NPC, NPCAttack } from '../types'
 import { Portrait } from './Portrait'
@@ -11,12 +13,29 @@ import { PortraitEditor } from './PortraitEditor'
 import { SpecialCreatureForm } from './SpecialCreatureForm'
 import { Badge, Button, Card, Input, Select, SectionTitle, NumberInput } from './ui'
 
-export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs: NPC[]; characters: Character[] }) {
+export function NpcManager({
+  table,
+  npcs,
+  characters,
+  folders,
+  onMoveFolder,
+}: {
+  table: GameTable
+  /** As criaturas a mostrar (a aba já filtrou pela busca). */
+  npcs: NPC[]
+  characters: Character[]
+  /** As pastas da aba inteira — NPCs de ficha completa e criaturas dividem as mesmas. */
+  folders: readonly string[]
+  onMoveFolder: (from: string, to: string) => Promise<void> | void
+}) {
   const [category, setCategory] = useState(BESTIARY_CATEGORIES[0])
   const [bestiaryChoice, setBestiaryChoice] = useState(BESTIARY.find((b) => b.category === BESTIARY_CATEGORIES[0])?.name ?? '')
   const [customName, setCustomName] = useState('')
   const [creatingSpecial, setCreatingSpecial] = useState(false)
   const [monsterImages, setMonsterImages] = useState<Record<string, string>>({})
+  // Pasta em que as criaturas novas entram — preparar um encontro inteiro numa
+  // pasta só ("Arco 1 > Masmorra") sem mover uma por uma.
+  const [newFolder, setNewFolder] = useState('')
 
   useEffect(() => listenMonsterImages(table.id, setMonsterImages), [table.id])
 
@@ -36,6 +55,7 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
       attacks: entry.attacks.map((a) => ({ id: newId(), name: a.name, dano: a.dano, note: a.note })),
       sourceLabel: `${entry.category}${entry.special ? ' — ' + entry.special : ''}`,
       portraitUrl: resolveCreaturePortrait(entry.name, monsterImages[entry.name.trim().toLowerCase()]),
+      folder: folderToSave(newFolder),
       visible: false,
       createdAt: Date.now(),
     })
@@ -51,6 +71,7 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
       attacks: [{ id: newId(), name: 'Ataque', dano: '1d6' }],
       sourceLabel: 'Personalizado',
       portraitUrl: monsterImages[customName.trim().toLowerCase()],
+      folder: folderToSave(newFolder),
       visible: false,
       createdAt: Date.now(),
     })
@@ -125,6 +146,23 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
         <p className="text-[11px] text-purple-400/50">
           Ficha livre é para o que foge das regras — dragões, entidades, titãs: você inventa os campos.
         </p>
+        <label className="flex flex-wrap items-center gap-2 border-t border-purple-900/30 pt-2 text-xs text-purple-300/70">
+          Criar dentro da pasta
+          <Input
+            value={newFolder}
+            onChange={(e) => setNewFolder(e.target.value)}
+            placeholder="Sem pasta — ou Arco 1 > Masmorra"
+            list="npc-folders"
+            style={{ width: '14rem' }}
+            className="!py-1 text-xs"
+            data-new-npc-folder=""
+          />
+          <datalist id="npc-folders">
+            {folders.map((f) => (
+              <option key={f} value={showPath(f)} />
+            ))}
+          </datalist>
+        </label>
       </Card>
 
       {creatingSpecial && (
@@ -136,6 +174,7 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
               tableId: table.id,
               flavor: 'special',
               sourceLabel: draft.title || 'Criatura especial',
+              folder: folderToSave(newFolder),
               visible: false,
               createdAt: Date.now(),
               ...draft,
@@ -147,12 +186,21 @@ export function NpcManager({ table, npcs, characters }: { table: GameTable; npcs
         />
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        {npcs.map((npc) => (
-          <NpcCard key={npc.id} table={table} npc={npc} characters={characters} />
-        ))}
-        {npcs.length === 0 && <p className="text-sm text-purple-300/50">Nenhuma criatura personalizada nesta mesa ainda.</p>}
-      </div>
+      {npcs.length === 0 ? (
+        <p className="text-sm text-purple-300/50">Nenhuma criatura personalizada aqui.</p>
+      ) : (
+        <FolderTree
+          items={npcs}
+          folderOf={(n) => n.folder}
+          label={(n) => n.name}
+          itemKey={(n) => n.id}
+          renderItem={(npc) => <NpcCard table={table} npc={npc} characters={characters} folders={folders} />}
+          folders={folders}
+          onMoveFolder={onMoveFolder}
+          rememberKey={`shadowlords:pastas-criaturas:${table.id}`}
+          itemsClassName="grid gap-3 sm:grid-cols-2"
+        />
+      )}
     </div>
   )
 }
@@ -294,7 +342,7 @@ function CreatureStats({ table, npc, onClose }: { table: GameTable; npc: NPC; on
   )
 }
 
-function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; characters: Character[] }) {
+function NpcCard({ table, npc, characters, folders }: { table: GameTable; npc: NPC; characters: Character[]; folders: readonly string[] }) {
   const [hpDelta, setHpDelta] = useState(1)
   const [targetId, setTargetId] = useState(characters[0]?.id ?? '')
   const [attackIdx, setAttackIdx] = useState(0)
@@ -406,6 +454,12 @@ function NpcCard({ table, npc, characters }: { table: GameTable; npc: NPC; chara
             ) : (
               npc.sourceLabel && <p className="text-xs text-purple-300/50">{npc.sourceLabel}</p>
             )}
+            <FolderSelect
+              value={npc.folder}
+              folders={folders}
+              onChange={(p) => void moveToFolder(table.id, 'npcs', npc.id, p)}
+              className="mt-1"
+            />
           </div>
         </div>
         <div className="flex items-center gap-1">

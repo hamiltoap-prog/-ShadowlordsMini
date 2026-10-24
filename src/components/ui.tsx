@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import type { ButtonHTMLAttributes, InputHTMLAttributes, PropsWithChildren, SelectHTMLAttributes } from 'react'
+import type { ButtonHTMLAttributes, InputHTMLAttributes, PropsWithChildren, SelectHTMLAttributes, ComponentProps } from 'react'
 
 /** Placa da HUD: canto chanfrado, fio de ouro no topo e fundo de aço escuro. */
 export function Card({ children, className = '' }: PropsWithChildren<{ className?: string }>) {
@@ -82,6 +82,15 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
     <select
       {...props}
       className={`w-full border border-[color:var(--gold-dark)] bg-[var(--surface-well)] px-3 py-1.5 text-sm text-purple-100 outline-none transition focus:border-[color:var(--gold)] ${props.className ?? ''}`}
+    />
+  )
+}
+
+export function Textarea(props: ComponentProps<'textarea'>) {
+  return (
+    <textarea
+      {...props}
+      className={`w-full border border-[color:var(--gold-dark)] bg-[var(--surface-well)] px-3 py-1.5 text-sm text-purple-100 outline-none transition placeholder:text-purple-400/50 focus:border-[color:var(--gold)] focus:shadow-[0_0_0_1px_rgba(200,170,110,0.25)] ${props.className ?? ''}`}
     />
   )
 }

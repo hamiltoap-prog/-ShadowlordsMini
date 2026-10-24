@@ -13,7 +13,9 @@ import { ReferenceBrowser } from '../components/ReferenceBrowser'
 import { Badge, Button, Card, Input, SectionTitle, TabButton } from '../components/ui'
 import { authErrorMessage, changeGMPassword } from '../firebase'
 import { logNote } from '../lib/actions'
-import { deleteCharacter, listenCharacters, listenNPCs, listenRollRequests, updateTable } from '../lib/store'
+import { deleteCharacter, listenCharacters, listenNPCs, listenRollRequests, moveFolder, moveToFolder, updateTable } from '../lib/store'
+import { allFolders } from '../lib/folders'
+import { FolderSelect, FolderTree } from '../components/Folders'
 import type { Character, GameTable, NPC } from '../types'
 import { CharacterCreate } from './CharacterCreate'
 import { PlayerView } from './PlayerView'
@@ -53,6 +55,20 @@ export function GMDashboard({ table }: { table: GameTable }) {
   // como NPCs e aparecem junto com as outras criaturas, não com os jogadores.
   const players = characters.filter((c) => c.ownerUid !== table.gmUid)
   const gmCharacters = characters.filter((c) => c.ownerUid === table.gmUid)
+
+  // Aba NPCs: busca pelo nome e pastas que valem para as duas listas — uma
+  // pasta "Arco 1" junta os NPCs de ficha completa e as criaturas do arco.
+  const [npcSearch, setNpcSearch] = useState('')
+  const npcFolders = allFolders([...gmCharacters.map((c) => c.folder), ...npcs.map((n) => n.folder)])
+  const matches = (name: string) => !npcSearch.trim() || name.toLowerCase().includes(npcSearch.trim().toLowerCase())
+  const shownGmCharacters = gmCharacters.filter((c) => matches(c.name))
+  const shownNpcs = npcs.filter((n) => matches(n.name))
+  async function moveNpcFolder(from: string, to: string) {
+    await Promise.all([
+      moveFolder(table.id, 'characters', gmCharacters, from, to),
+      moveFolder(table.id, 'npcs', npcs, from, to),
+    ])
+  }
 
   function copyCode() {
     navigator.clipboard?.writeText(table.code).then(() => {
@@ -220,30 +236,58 @@ export function GMDashboard({ table }: { table: GameTable }) {
                 ausente. Aparecem aqui automaticamente, prontos para ir à bandeja da tela de jogo.
               </p>
             </div>
+            <Input
+              value={npcSearch}
+              onChange={(e) => setNpcSearch(e.target.value)}
+              placeholder="🔍 Buscar NPC ou criatura pelo nome"
+              style={{ maxWidth: '22rem' }}
+              className="text-sm"
+              data-npc-search=""
+            />
+            {shownGmCharacters.length > 0 ? (
+              <FolderTree
+                items={shownGmCharacters}
+                folderOf={(c) => c.folder}
+                label={(c) => c.name}
+                itemKey={(c) => c.id}
+                folders={npcFolders}
+                onMoveFolder={moveNpcFolder}
+                rememberKey={`shadowlords:pastas-npcs:${table.id}`}
+                itemsClassName="flex flex-wrap gap-2"
+                renderItem={(c) => (
+                  <div
+                    className={`flex flex-col gap-1 rounded-lg border px-3 py-2 text-left text-sm ${
+                      selected?.id === c.id && !creatingChar
+                        ? 'border-purple-500 bg-purple-900/30'
+                        : 'border-purple-900/30 bg-black/20 hover:border-purple-700'
+                    }`}
+                    data-gm-character={c.name}
+                  >
+                    <button
+                      onClick={() => {
+                        setSelectedId(c.id)
+                        setCreatingChar(false)
+                      }}
+                      className="flex items-center gap-2 text-left"
+                    >
+                      <Portrait url={c.portraitUrl} name={c.name} size={32} />
+                      <span>
+                        <span className="block text-purple-100">{c.name}</span>
+                        <span className="block text-xs text-purple-300/50">
+                          PV {c.hp.current}/{c.hp.max} · Def {c.defense}
+                        </span>
+                      </span>
+                    </button>
+                    <FolderSelect value={c.folder} folders={npcFolders} onChange={(p) => void moveToFolder(table.id, 'characters', c.id, p)} />
+                  </div>
+                )}
+              />
+            ) : (
+              <p className="text-sm text-purple-300/50">
+                {gmCharacters.length === 0 ? 'Nenhum NPC de ficha completa ainda.' : 'Nenhum NPC de ficha completa com esse nome.'}
+              </p>
+            )}
             <div className="flex flex-wrap gap-2">
-              {gmCharacters.map((c) => (
-                <button
-                  key={c.id}
-                  onClick={() => {
-                    setSelectedId(c.id)
-                    setCreatingChar(false)
-                  }}
-                  className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm ${
-                    selected?.id === c.id && !creatingChar
-                      ? 'border-purple-500 bg-purple-900/30'
-                      : 'border-purple-900/30 bg-black/20 hover:border-purple-700'
-                  }`}
-                >
-                  <Portrait url={c.portraitUrl} name={c.name} size={32} />
-                  <span>
-                    <span className="block text-purple-100">{c.name}</span>
-                    <span className="block text-xs text-purple-300/50">
-                      PV {c.hp.current}/{c.hp.max} · Def {c.defense}
-                    </span>
-                  </span>
-                </button>
-              ))}
-              {gmCharacters.length === 0 && <p className="text-sm text-purple-300/50">Nenhum NPC de ficha completa ainda.</p>}
               <button
                 onClick={() => setCreatingChar(true)}
                 className={`rounded-lg border border-dashed px-3 py-2 text-sm ${
@@ -297,7 +341,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
           </div>
 
           <div className="border-t border-purple-900/30 pt-4">
-            <NpcManager table={table} npcs={npcs} characters={characters} />
+            <NpcManager table={table} npcs={shownNpcs} characters={characters} folders={npcFolders} onMoveFolder={moveNpcFolder} />
           </div>
         </div>
       )}

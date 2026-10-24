@@ -1,5 +1,9 @@
 import { useState } from 'react'
-import { Badge, Button, Input, SectionTitle, NumberInput } from '../components/ui'
+import { Badge, Button, Input, SectionTitle, NumberInput, TabButton } from '../components/ui'
+import { FolderSelect, FolderTree } from '../components/Folders'
+import { StoryEditor } from '../components/story/StoryEditor'
+import { presentStory, useStoryShow } from '../components/story/StoryOverlay'
+import { allFolders, folderToSave, showPath } from '../lib/folders'
 import { resolveCreaturePortrait } from '../data/creatureArt'
 import { normalizeImageUrl } from '../lib/imageUrl'
 import {
@@ -12,10 +16,12 @@ import {
   squaresForTokenSize,
   tokenSquares,
 } from '../lib/sceneGeometry'
-import { groupByFolder, openLibraryItem, snapshotOf } from '../lib/sceneLibrary'
+import { openLibraryItem, snapshotOf } from '../lib/sceneLibrary'
 import {
   addSceneLibraryItem,
   deleteSceneLibraryItem,
+  moveFolder,
+  moveToFolder,
   updateCharacter,
   updateSceneLibraryItem,
 } from '../lib/store'
@@ -586,12 +592,23 @@ export function PiecesPanel({
 // Biblioteca
 // ---------------------------------------------------------------------------
 
+type LibraryFilter = 'all' | 'map' | 'story' | 'token'
+const LIBRARY_FILTERS: [LibraryFilter, string][] = [
+  ['all', 'Tudo'],
+  ['map', 'Cenas'],
+  ['story', 'Histórias'],
+  ['token', 'Ícones'],
+]
+
 /**
- * Cenas e ícones guardados na mesa, para reaproveitar entre sessões.
+ * Cenas, histórias e ícones guardados na mesa, para reaproveitar entre sessões,
+ * organizados em pastas e subpastas ("Arco 1 › Masmorra").
  *
  * Guardar uma cena guarda a cena INTEIRA — imagem, enquadramento, grade, luz,
  * névoa, peças e som. A cena aberta a partir da biblioteca pode ser gravada
  * por cima, para mexer num encontro preparado sem acumular cópias dele.
+ * Histórias são os slides do modo apresentação: editar abre o editor, e
+ * apresentar cobre a tela de jogo da mesa toda.
  */
 export function LibraryPanel({
   tableId,
@@ -609,11 +626,21 @@ export function LibraryPanel({
   const [label, setLabel] = useState('')
   const [folder, setFolder] = useState('')
   const [notice, setNotice] = useState('')
+  const [filter, setFilter] = useState<LibraryFilter>('all')
+  // A história aberta no editor: um item, ou `null` para uma nova.
+  const [editing, setEditing] = useState<SceneLibraryItem | null | undefined>(undefined)
+  const show = useStoryShow(tableId)
 
   const scenes = library.filter((i) => i.kind === 'map')
-  const tokenPresets = library.filter((i) => i.kind === 'token')
   const openItem = scenes.find((i) => i.id === scene.fromLibraryId)
-  const folders = Array.from(new Set(scenes.map((i) => i.folder?.trim()).filter(Boolean))) as string[]
+  const folders = allFolders(library.map((i) => i.folder))
+  const counts: Record<LibraryFilter, number> = {
+    all: library.length,
+    map: scenes.length,
+    story: library.filter((i) => i.kind === 'story').length,
+    token: library.filter((i) => i.kind === 'token').length,
+  }
+  const shown = filter === 'all' ? library : library.filter((i) => i.kind === filter)
 
   function tell(text: string) {
     setNotice(text)
@@ -625,7 +652,7 @@ export function LibraryPanel({
       kind: 'map',
       label: label.trim(),
       imageUrl: scene.backgroundUrl,
-      folder: folder.trim() || undefined,
+      folder: folderToSave(folder),
       snapshot: snapshotOf(scene),
       createdAt: Date.now(),
     })
@@ -643,6 +670,114 @@ export function LibraryPanel({
       updatedAt: Date.now(),
     })
     tell(`"${item.label}" atualizada.`)
+  }
+
+  function rename(item: SceneLibraryItem) {
+    const next = window.prompt('Novo nome', item.label)?.trim()
+    if (next && next !== item.label) void updateSceneLibraryItem(tableId, item.id, { label: next })
+  }
+
+  function remove(item: SceneLibraryItem) {
+    if (window.confirm(`Apagar "${item.label}" da biblioteca?`)) void deleteSceneLibraryItem(tableId, item.id)
+  }
+
+  async function present(item: SceneLibraryItem) {
+    if (!item.slides?.length) return
+    await presentStory(tableId, item)
+  }
+
+  // Ações comuns a todo item: pasta, renomear, apagar.
+  const itemTools = (item: SceneLibraryItem) => (
+    <>
+      <FolderSelect value={item.folder} folders={folders} onChange={(p) => void moveToFolder(tableId, 'sceneLibrary', item.id, p)} />
+      <button className="text-purple-400/70 hover:text-[color:var(--gold)]" title="Renomear" onClick={() => rename(item)}>
+        ✎
+      </button>
+      <button className="text-red-400 hover:text-red-200" title="Apagar" onClick={() => remove(item)}>
+        ✕
+      </button>
+    </>
+  )
+
+  function renderItem(item: SceneLibraryItem) {
+    if (item.kind === 'story') {
+      const live = show?.open && show.libraryId === item.id
+      const total = item.slides?.length ?? 0
+      return (
+        <div
+          data-library-item={item.label}
+          data-kind="story"
+          className={`flex flex-wrap items-center justify-between gap-2 rounded border px-2 py-1 ${
+            live ? 'border-[color:var(--gold)]/70 bg-[color:var(--gold)]/10' : 'border-purple-900/30 bg-black/20'
+          }`}
+        >
+          <button className="flex min-w-0 items-center gap-1.5 truncate text-left text-purple-100 hover:text-purple-300" onClick={() => setEditing(item)}>
+            📖 <span className="truncate">{item.label}</span>
+            <span className="shrink-0 text-[10px] text-purple-400/50">
+              {total} slide{total === 1 ? '' : 's'}
+            </span>
+          </button>
+          <span className="flex shrink-0 flex-wrap items-center gap-1.5">
+            {live && <Badge tone="good">no ar</Badge>}
+            <Button variant="primary" className="px-2 py-0.5 text-[10px]" disabled={total === 0} onClick={() => void present(item)} data-present="">
+              ▶ apresentar
+            </Button>
+            <Button variant="ghost" className="px-2 py-0.5 text-[10px]" onClick={() => setEditing(item)} data-edit-story="">
+              editar
+            </Button>
+            {itemTools(item)}
+          </span>
+        </div>
+      )
+    }
+    if (item.kind === 'token') {
+      const kind = item.tokenKind ?? 'monster'
+      return (
+        <div data-library-item={item.label} data-kind="token" className="flex flex-wrap items-center justify-between gap-2 rounded border border-purple-900/30 bg-black/20 px-2 py-1">
+          <button
+            className="flex min-w-0 items-center gap-1.5 truncate text-left text-purple-100 hover:text-purple-300"
+            title="Põe no mapa"
+            onClick={() => onAddToken({ label: item.label, imageUrl: item.imageUrl, kind })}
+          >
+            <span className={`h-2 w-2 shrink-0 rounded-sm ${KIND_DOT[kind]}`} />
+            <span className="truncate">{item.label}</span>
+          </button>
+          <span className="flex shrink-0 flex-wrap items-center gap-1.5">
+            <KindSelect value={kind} onChange={(k) => updateSceneLibraryItem(tableId, item.id, { tokenKind: k })} />
+            <button
+              title="Preparar na bandeja"
+              className="text-purple-400 hover:text-purple-200"
+              onClick={() => onAddToken({ label: item.label, imageUrl: item.imageUrl, kind }, { onBoard: false })}
+            >
+              🎭
+            </button>
+            {itemTools(item)}
+          </span>
+        </div>
+      )
+    }
+    const open = item.id === scene.fromLibraryId
+    return (
+      <div
+        data-library-item={item.label}
+        data-kind="map"
+        className={`flex flex-wrap items-center justify-between gap-2 rounded border px-2 py-1 ${
+          open ? 'border-[color:var(--gold)]/70 bg-[color:var(--gold)]/10' : 'border-purple-900/30 bg-black/20'
+        }`}
+      >
+        <button
+          className="flex min-w-0 items-center gap-1.5 truncate text-left text-purple-100 hover:text-purple-300"
+          title={item.snapshot ? 'Abre a cena inteira, como foi guardada' : 'Item antigo: troca só a imagem do mapa'}
+          onClick={() => onOpen(openLibraryItem(scene, item))}
+        >
+          🗺️ <span className="truncate">{item.label}</span>
+        </button>
+        <span className="flex shrink-0 flex-wrap items-center gap-1.5">
+          {open ? <Badge tone="good">aberta</Badge> : <span className="text-[10px] text-purple-400/50">{item.snapshot ? 'cena completa' : 'só o mapa'}</span>}
+          {itemTools(item)}
+        </span>
+      </div>
+    )
   }
 
   return (
@@ -664,13 +799,15 @@ export function LibraryPanel({
           <Input
             value={folder}
             onChange={(e) => setFolder(e.target.value)}
-            placeholder="Pasta (opcional)"
-            style={{ width: '8rem' }} className="text-xs"
+            placeholder="Pasta: Arco 1 > Masmorra"
+            style={{ width: '11rem' }}
+            className="text-xs"
             list="scene-folders"
+            data-save-folder=""
           />
           <datalist id="scene-folders">
             {folders.map((f) => (
-              <option key={f} value={f} />
+              <option key={f} value={showPath(f)} />
             ))}
           </datalist>
           <Button disabled={!label.trim() || (!scene.backgroundUrl && scene.tokens.length === 0)} onClick={saveNew}>
@@ -680,89 +817,43 @@ export function LibraryPanel({
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <p className="mb-1 uppercase tracking-[0.14em] text-purple-400/60">Cenas e mapas</p>
-          <div className="flex flex-col gap-2">
-            {groupByFolder(scenes).map(([name, items]) => (
-              <div key={name}>
-                <p className="mb-0.5 text-[10px] uppercase tracking-wide text-purple-400/50">📁 {name}</p>
-                <div className="flex flex-col gap-1">
-                  {items.map((m) => (
-                    <div
-                      key={m.id}
-                      data-library-item={m.label}
-                      className={`flex items-center justify-between gap-2 rounded border px-2 py-1 ${
-                        m.id === scene.fromLibraryId ? 'border-[color:var(--gold)]/70 bg-[color:var(--gold)]/10' : 'border-purple-900/30 bg-black/20'
-                      }`}
-                    >
-                      <button
-                        className="flex min-w-0 items-center gap-1.5 truncate text-left text-purple-100 hover:text-purple-300"
-                        title={m.snapshot ? 'Abre a cena inteira, como foi guardada' : 'Item antigo: troca só a imagem do mapa'}
-                        onClick={() => onOpen(openLibraryItem(scene, m))}
-                      >
-                        🗺️ <span className="truncate">{m.label}</span>
-                      </button>
-                      <span className="flex shrink-0 items-center gap-1.5">
-                        {m.id === scene.fromLibraryId ? (
-                          <Badge tone="good">aberta</Badge>
-                        ) : (
-                          <span className="text-[10px] text-purple-400/50">{m.snapshot ? 'cena completa' : 'só o mapa'}</span>
-                        )}
-                        <button
-                          className="text-red-400 hover:text-red-200"
-                          onClick={() => {
-                            if (window.confirm(`Apagar "${m.label}" da biblioteca?`)) void deleteSceneLibraryItem(tableId, m.id)
-                          }}
-                        >
-                          ✕
-                        </button>
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ))}
-            {scenes.length === 0 && <p className="text-purple-400/40">Nenhuma cena guardada ainda.</p>}
-          </div>
-        </div>
-
-        <div>
-          <p className="mb-1 uppercase tracking-[0.14em] text-purple-400/60">Monstros/ícones salvos</p>
-          <div className="flex flex-col gap-1">
-            {tokenPresets.map((t) => {
-              const kind = t.tokenKind ?? 'monster'
-              return (
-                <div key={t.id} className="flex items-center justify-between gap-2 rounded border border-purple-900/30 bg-black/20 px-2 py-1">
-                  <button
-                    className="flex min-w-0 items-center gap-1.5 truncate text-left text-purple-100 hover:text-purple-300"
-                    onClick={() => onAddToken({ label: t.label, imageUrl: t.imageUrl, kind })}
-                  >
-                    <span className={`h-2 w-2 shrink-0 rounded-sm ${KIND_DOT[kind]}`} />
-                    <span className="truncate">{t.label}</span>
-                  </button>
-                  <span className="flex shrink-0 items-center gap-1">
-                    <KindSelect value={kind} onChange={(k) => updateSceneLibraryItem(tableId, t.id, { tokenKind: k })} />
-                    <button
-                      title="Preparar na bandeja"
-                      className="text-purple-400 hover:text-purple-200"
-                      onClick={() => onAddToken({ label: t.label, imageUrl: t.imageUrl, kind }, { onBoard: false })}
-                    >
-                      🎭
-                    </button>
-                    <button className="text-red-400 hover:text-red-200" onClick={() => deleteSceneLibraryItem(tableId, t.id)}>
-                      ✕
-                    </button>
-                  </span>
-                </div>
-              )
-            })}
-            {tokenPresets.length === 0 && (
-              <p className="text-purple-400/40">Nenhum ícone salvo — crie um em "Peças" e use "Guardar na biblioteca".</p>
-            )}
-          </div>
-        </div>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="flex flex-wrap gap-1" data-library-filter="">
+          {LIBRARY_FILTERS.map(([k, name]) => (
+            <TabButton key={k} active={filter === k} onClick={() => setFilter(k)} className="!px-2 !py-1 text-[10px]">
+              {name} ({counts[k]})
+            </TabButton>
+          ))}
+        </span>
+        <Button variant="secondary" className="px-2 py-1 text-[11px]" onClick={() => setEditing(null)} data-new-story="">
+          + nova história
+        </Button>
       </div>
+
+      {shown.length === 0 ? (
+        <p className="text-purple-400/40">
+          {filter === 'token'
+            ? 'Nenhum ícone salvo — crie um em "Peças" e use "Guardar na biblioteca".'
+            : filter === 'story'
+              ? 'Nenhuma história ainda. Use "+ nova história" para montar os slides.'
+              : 'Nada guardado aqui ainda.'}
+        </p>
+      ) : (
+        <FolderTree
+          items={shown}
+          folderOf={(i) => i.folder}
+          label={(i) => i.label}
+          itemKey={(i) => i.id}
+          renderItem={renderItem}
+          folders={folders}
+          rememberKey={`shadowlords:pastas-biblioteca:${tableId}`}
+          onMoveFolder={(from, to) => moveFolder(tableId, 'sceneLibrary', library, from, to)}
+        />
+      )}
+
+      {editing !== undefined && (
+        <StoryEditor tableId={tableId} item={editing ?? undefined} folders={folders} show={show} onClose={() => setEditing(undefined)} />
+      )}
     </div>
   )
 }

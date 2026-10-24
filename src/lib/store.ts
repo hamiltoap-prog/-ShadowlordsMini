@@ -2,6 +2,7 @@ import {
   addDoc,
   collection,
   deleteDoc,
+  deleteField,
   doc,
   getDoc,
   getDocs,
@@ -28,7 +29,9 @@ import type {
   SceneLibraryItem,
   ScenePing,
   SceneToken,
+  StoryShow,
 } from '../types'
+import { folderToSave, pathAfterMove } from './folders'
 import { newId, newTableCode } from './id'
 
 function requireDb() {
@@ -419,6 +422,34 @@ export function listenScene(tableId: string, cb: (scene: Scene | null) => void) 
   )
 }
 
+// ---------- Modo apresentação ----------
+
+/**
+ * A história no ar mora ao lado da cena, num documento que todos leem (a regra
+ * de `scene/*`: todos leem, só o Mestre escreve) — e não na biblioteca, que é
+ * bastidor do Mestre. Por isso os slides são COPIADOS para cá ao apresentar, e
+ * sem as notas: o jogador vê o que está sendo contado, nunca o resto.
+ */
+export function storyShowDoc(tableId: string) {
+  return doc(requireDb(), 'tables', tableId, 'scene', 'story')
+}
+
+export async function setStoryShow(tableId: string, show: StoryShow) {
+  await setDoc(storyShowDoc(tableId), stripUndefined({ ...show, updatedAt: Date.now() }))
+}
+
+export async function updateStoryShow(tableId: string, patch: Partial<StoryShow>) {
+  await setDoc(storyShowDoc(tableId), stripUndefined({ ...patch, updatedAt: Date.now() }), { merge: true })
+}
+
+export function listenStoryShow(tableId: string, cb: (show: StoryShow | null) => void) {
+  return onSnapshot(
+    storyShowDoc(tableId),
+    (snap) => cb(snap.exists() ? (snap.data() as StoryShow) : null),
+    (err) => console.error('Erro ao observar a apresentação', err),
+  )
+}
+
 // ---------- Biblioteca de mapas e tokens da mesa ----------
 
 export function sceneLibraryCol(tableId: string) {
@@ -430,6 +461,38 @@ export async function addSceneLibraryItem(tableId: string, item: Omit<SceneLibra
   const full: SceneLibraryItem = { ...item, id }
   await setDoc(doc(sceneLibraryCol(tableId), id), stripUndefined(full))
   return full
+}
+
+// ---------- Pastas ----------
+
+/** As coleções da mesa cujos itens podem estar numa pasta. */
+export type FolderCollection = 'sceneLibrary' | 'npcs' | 'characters'
+
+/** Um item para uma pasta. Vazio = solto: o campo sai do documento. */
+export async function moveToFolder(tableId: string, col: FolderCollection, id: string, path: string | undefined) {
+  await updateDoc(doc(requireDb(), 'tables', tableId, col, id), { folder: folderToSave(path) ?? deleteField() })
+}
+
+/**
+ * Renomeia ou move uma pasta: troca o começo do caminho em todos os itens
+ * dela, subpastas incluídas, numa escrita só — ninguém vê a pasta pela metade.
+ */
+export async function moveFolder(
+  tableId: string,
+  col: FolderCollection,
+  items: readonly { id: string; folder?: string }[],
+  from: string,
+  to: string,
+) {
+  const batch = writeBatch(requireDb())
+  let n = 0
+  for (const i of items) {
+    const next = pathAfterMove(i.folder, from, to)
+    if (next === null) continue
+    batch.update(doc(requireDb(), 'tables', tableId, col, i.id), { folder: next || deleteField() })
+    n++
+  }
+  if (n > 0) await batch.commit()
 }
 
 export async function deleteSceneLibraryItem(tableId: string, itemId: string) {
