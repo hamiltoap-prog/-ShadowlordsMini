@@ -20,6 +20,7 @@ import { db } from '../firebase'
 import type {
   AudioTrack,
   Character,
+  CharacterNote,
   CustomItem,
   GameTable,
   LogEntry,
@@ -194,7 +195,39 @@ export async function donateHp(tableId: string, from: Character, to: Character, 
 }
 
 export async function deleteCharacter(tableId: string, characterId: string) {
+  // As notas são uma subcoleção: o Firestore não as apaga junto com a ficha.
+  const notes = await getDocs(characterNotesCol(tableId, characterId))
+  await Promise.all(notes.docs.map((d) => deleteDoc(d.ref)))
   await deleteDoc(doc(charactersCol(tableId), characterId))
+}
+
+// ---------- Notas do personagem ----------
+
+export function characterNotesCol(tableId: string, characterId: string) {
+  return collection(requireDb(), 'tables', tableId, 'characters', characterId, 'notes')
+}
+
+export async function saveCharacterNote(tableId: string, characterId: string, note: CharacterNote) {
+  await setDoc(doc(characterNotesCol(tableId, characterId), note.id), stripUndefined(note))
+}
+
+export async function updateCharacterNote(tableId: string, characterId: string, noteId: string, patch: Partial<CharacterNote>) {
+  await updateDoc(doc(characterNotesCol(tableId, characterId), noteId), stripUndefined({ ...patch, updatedAt: Date.now() }))
+}
+
+export async function deleteCharacterNote(tableId: string, characterId: string, noteId: string) {
+  await deleteDoc(doc(characterNotesCol(tableId, characterId), noteId))
+}
+
+export function listenCharacterNotes(tableId: string, characterId: string, cb: (notes: CharacterNote[] | null) => void) {
+  return onSnapshot(
+    characterNotesCol(tableId, characterId),
+    (snap) => cb(snap.docs.map((d) => d.data() as CharacterNote)),
+    (err) => {
+      console.error('Erro ao observar as notas', err)
+      cb(null)
+    },
+  )
 }
 
 export function listenCharacters(tableId: string, cb: (chars: Character[]) => void) {
@@ -567,6 +600,12 @@ export async function deleteTableCompletely(tableId: string): Promise<void> {
   const database = requireDb()
   for (const sub of TABLE_SUBCOLLECTIONS) {
     const snap = await getDocs(collection(database, 'tables', tableId, sub))
+    if (sub === 'characters') {
+      for (const c of snap.docs) {
+        const notes = await getDocs(collection(c.ref, 'notes'))
+        await Promise.all(notes.docs.map((d) => deleteDoc(d.ref)))
+      }
+    }
     await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)))
   }
   await deleteDoc(doc(database, 'tables', tableId))

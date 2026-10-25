@@ -9,6 +9,7 @@ import { HpDonation } from '../components/HpDonation'
 import { LogFeed } from '../components/LogFeed'
 import { PortraitEditor } from '../components/PortraitEditor'
 import { ShopPanel } from '../components/ShopPanel'
+import { CharacterNotes } from '../components/CharacterNotes'
 import { GmXpControls } from '../components/GmXp'
 import { XpPanel } from '../components/XpPanel'
 import { Badge, Button, Card, Input, SectionTitle, NumberInput } from '../components/ui'
@@ -37,7 +38,6 @@ export function PlayerView({
   asGM?: boolean
 }) {
   const [character, setCharacter] = useState<Character | null | undefined>(undefined)
-  const [noteDraft, setNoteDraft] = useState('')
   const [hpDelta, setHpDelta] = useState(1)
   const [customItems, setCustomItems] = useState<CustomItem[]>([])
   const [tableChars, setTableChars] = useState<Character[]>([])
@@ -49,9 +49,6 @@ export function PlayerView({
     setCharacter(undefined)
     return listenCharacter(table.id, characterId, (c) => {
       setCharacter(c)
-      if (c) {
-        setNoteDraft((prev) => (document.activeElement?.id === 'notes-field' ? prev : c.notes))
-      }
     })
   }, [table.id, characterId])
 
@@ -469,15 +466,7 @@ export function PlayerView({
         {/* Anotações */}
         <Card className="flex flex-col gap-3 p-4">
           <SectionTitle>Anotações</SectionTitle>
-          <textarea
-            id="notes-field"
-            value={noteDraft}
-            onChange={(e) => setNoteDraft(e.target.value)}
-            onBlur={() => updateCharacter(table.id, character.id, { notes: noteDraft })}
-            rows={4}
-            className="w-full rounded-lg border border-purple-900/50 bg-[var(--surface-well)] p-2 text-sm text-purple-50 outline-none focus:border-purple-500"
-            placeholder="Segredos, objetivos, contatos..."
-          />
+          <CharacterNotes tableId={table.id} character={character} />
         </Card>
       </div>
 

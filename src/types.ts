@@ -853,3 +853,20 @@ export interface StoryShow {
   libraryId?: string
   updatedAt: number
 }
+
+/**
+ * Uma nota do personagem (aba Anotações da ficha). Mora numa subcoleção da
+ * ficha, `characters/{id}/notes`, que só o dono e o Mestre leem — a ficha em
+ * si é pública para a mesa, as notas não.
+ */
+export interface CharacterNote {
+  id: string
+  title: string
+  /** O texto formatado (negrito, listas, títulos...), em HTML do editor. */
+  html: string
+  /** O mesmo texto sem formatação: prévia na lista e busca. */
+  text: string
+  pinned?: boolean
+  createdAt: number
+  updatedAt: number
+}

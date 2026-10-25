@@ -25,6 +25,11 @@ apenas do *jogo* (fichas, dados, combate, mestre): conversa e chat ficam no Disc
   grade, luz, névoa, peças e o som que estava tocando. Monte o encontro antes da sessão e abra
   na hora; a cena aberta pode ser **gravada por cima** ("Atualizar") ou guardada como nova, e
   tudo fica organizado em pastas. Mapas guardados antes disso continuam lá, trocando só a imagem
+- 📝 **Notas do personagem**: quantas o jogador quiser, cada uma com título e um editor de
+  texto de verdade — negrito, itálico, sublinhado, títulos, listas com marcador e numeradas,
+  lista de tarefas com caixinha, citação e linha divisória. Salva sozinho enquanto se escreve;
+  notas fixadas ficam no topo e dá para buscar. São **privadas**: só o dono da ficha e o
+  Mestre leem (a anotação única de antes virou a primeira nota, sem perder nada)
 - 🗂️ **Pastas e subpastas** na biblioteca (cenas, histórias e ícones) e na aba NPCs (NPCs de
   ficha completa e criaturas dividem as mesmas pastas): "Arco 1 › Masmorra". Cada item tem um
   "mover para" com o caminho inteiro e um "+ nova pasta..."; cada pasta pode ser **renomeada**

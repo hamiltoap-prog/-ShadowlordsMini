@@ -82,6 +82,16 @@ service cloud.firestore {
           request.resource.data.hp.current > resource.data.hp.current &&
           request.resource.data.hp.current <= resource.data.hp.max;
         allow delete: if isGM(tableId) || resource.data.ownerUid == request.auth.uid || isSuperAdmin();
+
+        // Notas do personagem: privadas. A ficha é pública para a mesa, mas
+        // as notas só o dono da ficha e o Mestre leem e escrevem.
+        match /notes/{noteId} {
+          allow read, write: if signedIn() && (
+            get(/databases/$(database)/documents/tables/$(tableId)/characters/$(characterId)).data.ownerUid == request.auth.uid ||
+            isGM(tableId)
+          );
+          allow read, delete: if isSuperAdmin();
+        }
       }
 
       match /npcs/{npcId} {

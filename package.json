@@ -11,6 +11,11 @@
     "check": "node scripts/run-checks.mjs"
   },
   "dependencies": {
+    "@tiptap/extension-list": "3.31.4",
+    "@tiptap/extensions": "3.31.4",
+    "@tiptap/pm": "3.31.4",
+    "@tiptap/react": "3.31.4",
+    "@tiptap/starter-kit": "3.31.4",
     "firebase": "^12.18.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
