@@ -9,6 +9,7 @@ import { HpDonation } from '../components/HpDonation'
 import { LogFeed } from '../components/LogFeed'
 import { PortraitEditor } from '../components/PortraitEditor'
 import { ShopPanel } from '../components/ShopPanel'
+import { GmXpControls } from '../components/GmXp'
 import { XpPanel } from '../components/XpPanel'
 import { Badge, Button, Card, Input, SectionTitle, NumberInput } from '../components/ui'
 import { logNote } from '../lib/actions'
@@ -306,14 +307,6 @@ export function PlayerView({
                   className="w-20"
                 />
               </label>
-              <label className="flex items-center gap-1 text-purple-300/70">
-                XP
-                <NumberInput min={0}
-                  value={character.xp}
-                  onChange={(n) => updateCharacter(table.id, character.id, { xp: n })}
-                  className="w-20"
-                />
-              </label>
             </div>
           )}
           {character.skills.length > 0 && (
@@ -463,6 +456,7 @@ export function PlayerView({
         {/* XP */}
         <Card className="p-4">
           <SectionTitle className="mb-2">Experiência</SectionTitle>
+          {asGM && <GmXpControls tableId={table.id} character={character} />}
           <XpPanel
             character={character}
             onApply={async (patch, summary) => {

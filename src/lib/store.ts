@@ -5,6 +5,7 @@ import {
   deleteField,
   doc,
   getDoc,
+  increment,
   getDocs,
   limit,
   onSnapshot,
@@ -150,6 +151,14 @@ export async function createCharacter(tableId: string, character: Omit<Character
 
 export async function updateCharacter(tableId: string, characterId: string, patch: Partial<Character>) {
   await updateDoc(doc(charactersCol(tableId), characterId), stripUndefined({ ...patch, updatedAt: Date.now() }))
+}
+
+/**
+ * XP dado pelo Mestre. Soma no próprio banco (`increment`): dar XP ao grupo
+ * no mesmo instante em que um jogador gasta o dele não perde nenhum dos dois.
+ */
+export async function addCharacterXp(tableId: string, characterId: string, amount: number) {
+  await updateDoc(doc(charactersCol(tableId), characterId), { xp: increment(amount), updatedAt: Date.now() })
 }
 
 /**

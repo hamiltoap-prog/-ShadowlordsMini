@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { ApprovalPanel } from '../components/ApprovalPanel'
 import { CombatTracker } from '../components/CombatTracker'
 import { DiceOverlay } from '../components/DiceOverlay'
+import { GroupXpAward } from '../components/GmXp'
 import { GMDiceRoller } from '../components/GMDiceRoller'
 import { AudioConsole } from '../components/AudioConsole'
 import { ItemForge } from '../components/ItemForge'
@@ -161,7 +162,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
                         {c.name} {!c.isAlive && <Badge tone="bad">morto</Badge>}
                       </p>
                       <p className="text-xs text-purple-300/50">
-                        PV {c.hp.current}/{c.hp.max} · Def {c.defense} · {c.gold} moedas
+                        PV {c.hp.current}/{c.hp.max} · Def {c.defense} · {c.gold} moedas · {c.xp} XP
                       </p>
                     </div>
                     <button
@@ -181,6 +182,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
                   </p>
                 )}
               </div>
+              {players.length > 0 && <GroupXpAward tableId={table.id} characters={players} />}
             </Card>
           </div>
           <LogFeed tableId={table.id} />
@@ -218,7 +220,7 @@ export function GMDashboard({ table }: { table: GameTable }) {
           {selected && players.some((c) => c.id === selected.id) && (
             <div className="rounded-xl border border-purple-800/40">
               <p className="px-4 pt-3 text-xs uppercase tracking-wide text-purple-400/60">
-                Controlando a ficha de {selected.name} como Mestre — você pode editar atributos, PV, defesa e moedas.
+                Controlando a ficha de {selected.name} como Mestre — você pode editar atributos, PV, defesa, moedas e XP.
               </p>
               <PlayerView table={table} characterId={selected.id} uid={table.gmUid} asGM />
             </div>
